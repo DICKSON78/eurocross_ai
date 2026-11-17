@@ -11,12 +11,12 @@ return new class extends Migration
         Schema::create('eurocross_transactions', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('shop_id')->constrained('eurocross_settings')->cascadeOnDelete();
-            $table->string('provider');
-            $table->string('event_id')->nullable();
-            $table->string('transaction_id')->nullable();
-            $table->string('type')->default('subscription');
-            $table->string('status')->default('pending');
-            $table->string('plan')->nullable();
+            $table->string('provider', 50);
+            $table->string('event_id', 100)->nullable();
+            $table->string('transaction_id', 100)->nullable();
+            $table->string('type', 50)->default('subscription');
+            $table->string('status', 50)->default('pending');
+            $table->string('plan', 50)->nullable();
             $table->decimal('amount', 12, 2)->default(0);
             $table->decimal('vat_amount', 12, 2)->default(0);
             $table->char('currency', 3)->default('EUR');

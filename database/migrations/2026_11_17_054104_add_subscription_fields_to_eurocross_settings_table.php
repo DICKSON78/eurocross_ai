@@ -11,12 +11,12 @@ return new class extends Migration
         Schema::table('eurocross_settings', function (Blueprint $table): void {
             $table->timestamp('trial_started_at')->nullable()->after('trial_expires');
             $table->timestamp('grace_expires')->nullable()->after('trial_started_at');
-            $table->string('subscription_provider')->nullable()->after('grace_expires');
-            $table->string('subscription_id')->nullable()->after('subscription_provider');
-            $table->string('subscription_status')->default('none')->after('subscription_id');
+            $table->string('subscription_provider', 50)->nullable()->after('grace_expires');
+            $table->string('subscription_id', 191)->nullable()->after('subscription_provider');
+            $table->string('subscription_status', 50)->default('none')->after('subscription_id');
             $table->timestamp('subscription_current_period_end')->nullable()->after('subscription_status');
-            $table->string('customer_id')->nullable()->after('subscription_current_period_end');
-            $table->string('billing_email')->nullable()->after('customer_id');
+            $table->string('customer_id', 191)->nullable()->after('subscription_current_period_end');
+            $table->string('billing_email', 191)->nullable()->after('customer_id');
 
             $table->index(['subscription_status', 'plan'], 'eurocross_settings_subscription_plan_index');
         });
