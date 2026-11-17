@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('eurocross_chat_messages', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('shop_id')->constrained('eurocross_settings')->cascadeOnDelete();
-            $table->string('visitor_id');
+            $table->string('visitor_id', 191);
             $table->string('language', 8)->default('en');
             $table->string('role');
             $table->text('message');

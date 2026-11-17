@@ -10,8 +10,8 @@ return new class extends Migration
     {
         Schema::create('eurocross_webhooks', function (Blueprint $table) {
             $table->id();
-            $table->string('provider'); // lemon_squeezy, paddle, stripe
-            $table->string('event'); // invoice.paid, customer.subscription.created, etc.
+            $table->string('provider', 50); // lemon_squeezy, paddle, stripe
+            $table->string('event', 100); // invoice.paid, customer.subscription.created, etc.
             $table->text('payload'); // raw webhook payload
             $table->boolean('processed')->default(false);
             $table->timestamp('processed_at')->nullable();
