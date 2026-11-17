@@ -1,0 +1,327 @@
+/**
+ * EuroCross AI admin screens: settings, dashboard and info.
+ */
+:root {
+	--eurocross-primary: #7C0E44;
+	--eurocross-primary-dark: #6B0C3E;
+	--eurocross-primary-light: #9A1255;
+	--eurocross-accent: #E82757;
+	--eurocross-background: #F7F2F6;
+	--eurocross-surface: #FFFFFF;
+	--eurocross-text: #2D1B20;
+	--eurocross-muted: #5A3A42;
+	--eurocross-border: #D1A8C8;
+}
+
+.eurocross-ai-page {
+	max-width: 1200px;
+}
+
+.eurocross-ai-page h1 {
+	color: var(--eurocross-primary);
+	font-weight: 600;
+	margin-bottom: 1.25rem;
+}
+
+.eurocross-ai-page .description,
+.eurocross-ai-page .eurocross-section-title + p {
+	color: var(--eurocross-muted);
+	font-size: 0.875rem;
+}
+
+.eurocross-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+	margin: 0 0 1.5rem;
+	padding-bottom: 0.5rem;
+	border-bottom: 1px solid var(--eurocross-border);
+}
+
+.eurocross-tab {
+	padding: 0.5rem 0.9rem;
+	color: var(--eurocross-primary);
+	text-decoration: none;
+	border-radius: 4px;
+	background: transparent;
+}
+
+.eurocross-tab:hover,
+.eurocross-tab:focus {
+	background: rgba(124, 14, 68, 0.08);
+}
+
+.eurocross-tab.is-active {
+	color: #FFFFFF;
+	background: var(--eurocross-primary);
+}
+
+.eurocross-settings-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+	gap: 1.5rem;
+	align-items: start;
+}
+
+.eurocross-settings-main {
+	min-width: 0;
+	padding: 1rem 1.25rem;
+	background: var(--eurocross-surface);
+	border: 1px solid var(--eurocross-border);
+	border-radius: 8px;
+}
+
+.eurocross-settings-sidebar {
+	display: grid;
+	gap: 1rem;
+}
+
+.eurocross-card {
+	padding: 1.25rem;
+	background: var(--eurocross-surface);
+	border: 1px solid var(--eurocross-border);
+	border-radius: 8px;
+	box-shadow: 0 2px 8px rgba(107, 12, 62, 0.05);
+}
+
+.eurocross-card h2 {
+	margin-top: 0;
+	color: var(--eurocross-primary);
+	font-size: 1.1rem;
+}
+
+.eurocross-card p {
+	line-height: 1.5;
+}
+
+.eurocross-section-title {
+	color: var(--eurocross-primary-dark);
+	font-size: 1.15rem;
+	margin-top: 1.75rem;
+	padding-top: 0.75rem;
+	border-top: 1px solid var(--eurocross-border);
+	scroll-margin-top: 2rem;
+}
+
+.eurocross-ai-page .form-table {
+	width: 100%;
+	margin: 0 0 1.5rem;
+	border-collapse: collapse;
+}
+
+.eurocross-ai-page .form-table th {
+	width: 220px;
+	padding: 0.85rem 1rem 0.85rem 0;
+	color: var(--eurocross-text);
+	font-weight: 600;
+	vertical-align: top;
+}
+
+.eurocross-ai-page .form-table td {
+	padding: 0.85rem 0;
+	vertical-align: top;
+}
+
+.eurocross-ai-page .form-table tr {
+	border-bottom: 1px solid #F0E4EC;
+}
+
+.eurocross-ai-page .form-table input[type="text"],
+.eurocross-ai-page .form-table input[type="url"],
+.eurocross-ai-page .form-table input[type="password"],
+.eurocross-ai-page .form-table select,
+.eurocross-card input[type="email"],
+.eurocross-card select {
+	width: 100%;
+	max-width: 32rem;
+	padding: 0.5rem 0.65rem;
+	border: 1px solid var(--eurocross-border);
+	border-radius: 4px;
+	font-size: 0.9rem;
+}
+
+.eurocross-ai-page .form-table input:focus,
+.eurocross-ai-page .form-table select:focus,
+.eurocross-card input:focus,
+.eurocross-card select:focus {
+	border-color: var(--eurocross-primary);
+	box-shadow: 0 0 0 2px rgba(124, 14, 68, 0.15);
+	outline: none;
+}
+
+.eurocross-language-checkboxes {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1.25rem;
+	max-width: 36rem;
+}
+
+.eurocross-language-checkboxes label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+}
+
+.eurocross-settings-sidebar form label {
+	display: block;
+	margin: 0.75rem 0 0.25rem;
+	font-size: 0.875rem;
+	font-weight: 600;
+}
+
+.eurocross-settings-sidebar form .button {
+	margin-top: 0.75rem;
+}
+
+.eurocross-ajax-status {
+	min-height: 1.25rem;
+	margin: 0.5rem 0 0;
+	color: var(--eurocross-muted);
+	font-size: 0.85rem;
+}
+
+.eurocross-ajax-status.is-error {
+	color: var(--eurocross-accent);
+}
+
+.eurocross-dashboard-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	margin-bottom: 1rem;
+}
+
+.eurocross-loading {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 1rem 0;
+	color: var(--eurocross-primary);
+}
+
+.eurocross-spinner {
+	width: 16px;
+	height: 16px;
+	border: 2px solid var(--eurocross-border);
+	border-top-color: var(--eurocross-primary);
+	border-radius: 50%;
+	animation: eurocross-spin 0.8s linear infinite;
+}
+
+@keyframes eurocross-spin {
+	to { transform: rotate(360deg); }
+}
+
+.eurocross-stat-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+	gap: 1rem;
+}
+
+.eurocross-stat-value {
+	margin: 0.25rem 0;
+	color: var(--eurocross-primary);
+	font-size: 1.75rem;
+	font-weight: 700;
+}
+
+.eurocross-stat-note {
+	margin: 0;
+	color: var(--eurocross-muted);
+	font-size: 0.8rem;
+	overflow-wrap: anywhere;
+}
+
+.eurocross-data-list {
+	display: grid;
+	grid-template-columns: minmax(90px, auto) minmax(0, 1fr);
+	gap: 0.35rem 0.75rem;
+	margin: 0.5rem 0 0;
+	font-size: 0.875rem;
+}
+
+.eurocross-data-list dt {
+	color: var(--eurocross-muted);
+	font-weight: 600;
+}
+
+.eurocross-data-list dd {
+	margin: 0;
+	overflow-wrap: anywhere;
+}
+
+.eurocross-data-list .eurocross-data-list {
+	grid-column: 1 / -1;
+}
+
+.eurocross-empty {
+	color: var(--eurocross-muted);
+	font-style: italic;
+}
+
+.eurocross-empty-state,
+.eurocross-error-state {
+	padding: 2rem;
+	text-align: center;
+	background: var(--eurocross-surface);
+	border: 1px dashed var(--eurocross-border);
+	border-radius: 8px;
+}
+
+.eurocross-error-state {
+	border-color: var(--eurocross-accent);
+	color: var(--eurocross-primary-dark);
+}
+
+.eurocross-info-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 1rem;
+}
+
+.eurocross-info-grid code {
+	color: var(--eurocross-primary-dark);
+	background: var(--eurocross-background);
+	padding: 0.15rem 0.35rem;
+	border-radius: 3px;
+}
+
+.eurocross-notice .eurocross-dismiss {
+	margin-left: 1rem;
+}
+
+.is-loading {
+	opacity: 0.6;
+	cursor: wait;
+}
+
+@media (max-width: 900px) {
+	.eurocross-settings-layout {
+		grid-template-columns: 1fr;
+	}
+
+	.eurocross-settings-sidebar {
+		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+	}
+}
+
+@media (max-width: 600px) {
+	.eurocross-ai-page .form-table th {
+		width: auto;
+		padding-bottom: 0.25rem;
+	}
+
+	.eurocross-ai-page .form-table td {
+		padding-top: 0.25rem;
+	}
+
+	.eurocross-stat-grid,
+	.eurocross-info-grid,
+	.eurocross-settings-sidebar {
+		grid-template-columns: 1fr;
+	}
+
+	.eurocross-tabs {
+		gap: 0.25rem;
+	}
+}

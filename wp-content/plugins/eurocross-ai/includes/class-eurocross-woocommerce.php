@@ -1,0 +1,457 @@
+<?php
+
+/**
+ * WooCommerce integration for EuroCross AI.
+ */
+if (! defined('ABSPATH')) {
+    exit;
+}
+
+/**
+ * Adds translation and VAT/OSS features to WooCommerce.
+ *
+ * All hooks are registered only when WooCommerce is active.
+ */
+class EuroCross_AI_WooCommerce
+{
+    /**
+     * Register WooCommerce hooks.
+     *
+     * @return void
+     */
+    public function register()
+    {
+        if (! class_exists('WooCommerce')) {
+            return;
+        }
+
+        add_filter('woocommerce_product_get_name', [$this, 'translate_product_name'], 20, 2);
+        add_filter('woocommerce_product_get_short_description', [$this, 'translate_product_short_description'], 20, 2);
+        add_filter('woocommerce_product_get_description', [$this, 'translate_product_description'], 20, 2);
+        add_filter('the_title', [$this, 'translate_product_post_title'], 20, 2);
+
+        add_filter('woocommerce_checkout_fields', [$this, 'add_checkout_fields']);
+        add_action('woocommerce_after_checkout_billing_form', [$this, 'render_vat_status']);
+        add_action('woocommerce_checkout_update_order_review', [$this, 'refresh_vat_note']);
+        add_action('woocommerce_checkout_process', [$this, 'validate_checkout_vat']);
+        add_action('woocommerce_checkout_update_order_meta', [$this, 'save_order_meta']);
+        add_action('woocommerce_review_order_after_order_total', [$this, 'display_vat_note']);
+
+        add_filter('woocommerce_mail_content', [$this, 'translate_order_email'], 20, 2);
+        add_filter('woocommerce_email_subject_customer_processing_order', [$this, 'translate_email_subject'], 20, 2);
+        add_filter('woocommerce_email_subject_customer_completed_order', [$this, 'translate_email_subject'], 20, 2);
+        add_filter('woocommerce_email_subject_new_order', [$this, 'translate_email_subject'], 20, 2);
+    }
+
+    /**
+     * Translate a WooCommerce product name.
+     *
+     * @param  string  $name  Product name.
+     * @param  WC_Product  $product  Product object.
+     * @return string
+     */
+    public function translate_product_name($name, $product = null)
+    {
+        if (! eurocross_ai_is_enabled('eurocross_translate_product_titles')) {
+            return $name;
+        }
+
+        return $this->maybe_translate($name, 'product_title', $product);
+    }
+
+    /**
+     * Translate a WooCommerce product short description.
+     *
+     * @param  string  $description  Short description.
+     * @param  WC_Product  $product  Product object.
+     * @return string
+     */
+    public function translate_product_short_description($description, $product = null)
+    {
+        if (! eurocross_ai_is_enabled('eurocross_translate_product_descriptions')) {
+            return $description;
+        }
+
+        return $this->maybe_translate($description, 'product_short_description', $product);
+    }
+
+    /**
+     * Translate a WooCommerce product description.
+     *
+     * @param  string  $description  Description.
+     * @param  WC_Product  $product  Product object.
+     * @return string
+     */
+    public function translate_product_description($description, $product = null)
+    {
+        if (! eurocross_ai_is_enabled('eurocross_translate_product_descriptions')) {
+            return $description;
+        }
+
+        return $this->maybe_translate($description, 'product_description', $product);
+    }
+
+    /**
+     * Translate product titles rendered through the WordPress loop.
+     *
+     * @param  string  $title  Post title.
+     * @param  int  $post_id  Post ID.
+     * @return string
+     */
+    public function translate_product_post_title($title, $post_id = 0)
+    {
+        if (! eurocross_ai_is_enabled('eurocross_translate_product_titles') || is_admin()) {
+            return $title;
+        }
+
+        if (get_post_type($post_id) !== 'product') {
+            return $title;
+        }
+
+        if (! (function_exists('is_woocommerce') && is_woocommerce()) && ! is_singular('product')) {
+            return $title;
+        }
+
+        return $this->maybe_translate($title, 'product_title', $post_id);
+    }
+
+    /**
+     * Add the VAT number field to the WooCommerce checkout.
+     *
+     * @param  array  $fields  Checkout fields.
+     * @return array
+     */
+    public function add_checkout_fields($fields)
+    {
+        if (! isset($fields['billing']) || ! is_array($fields['billing'])) {
+            return $fields;
+        }
+
+        $fields['billing']['billing_eurocross_vat_toggle'] = [
+            'type' => 'checkbox',
+            'label' => __('I have an EU VAT number', 'eurocross-ai'),
+            'required' => false,
+            'class' => ['form-row-wide'],
+            'priority' => 110,
+            'clear' => true,
+            'custom_attributes' => [
+                'data-eurocross-vat-toggle' => '',
+            ],
+        ];
+
+        $fields['billing']['billing_eurocross_vat_number'] = [
+            'type' => 'text',
+            'label' => __('VAT number (EU B2B)', 'eurocross-ai'),
+            'placeholder' => __('Enter your VAT number', 'eurocross-ai'),
+            'required' => false,
+            'class' => ['form-row-wide'],
+            'priority' => 120,
+            'clear' => true,
+            'custom_attributes' => [
+                'autocomplete' => 'off',
+                'maxlength' => 20,
+                'data-eurocross-vat-number' => '',
+            ],
+        ];
+
+        return $fields;
+    }
+
+    /**
+     * Output the live region used by the frontend VAT checker.
+     *
+     * @return void
+     */
+    public function render_vat_status()
+    {
+        echo '<p class="eurocross-vat-status" data-eurocross-vat-status role="status" aria-live="polite"></p>';
+    }
+
+    /**
+     * Recalculate the VAT treatment when the checkout review is refreshed.
+     *
+     * @param  string  $posted_data  URL-encoded checkout data.
+     * @return void
+     */
+    public function refresh_vat_note($posted_data = '')
+    {
+        if (! function_exists('WC') || ! WC()->session) {
+            return;
+        }
+
+        $posted = [];
+        if (is_string($posted_data) && $posted_data !== '') {
+            parse_str($posted_data, $posted);
+        }
+
+        $vat_number = isset($posted['billing_eurocross_vat_number']) ? eurocross_ai_sanitize_vat_number($posted['billing_eurocross_vat_number']) : '';
+        $country = isset($posted['billing_country']) ? eurocross_ai_sanitize_country_code($posted['billing_country']) : '';
+
+        if ($vat_number === '' || $country === '') {
+            WC()->session->set('eurocross_vat_result', null);
+
+            return;
+        }
+
+        WC()->session->set('eurocross_vat_result', $this->calculate_vat_treatment($vat_number, $country));
+    }
+
+    /**
+     * Validate the submitted VAT number using the VIES endpoint.
+     *
+     * @return void
+     */
+    public function validate_checkout_vat()
+    {
+        if (! function_exists('WC') || ! WC()->checkout() || ! function_exists('wc_add_notice')) {
+            return;
+        }
+
+        $posted = WC()->checkout()->get_posted_data();
+        $vat_number = isset($posted['billing_eurocross_vat_number']) ? eurocross_ai_sanitize_vat_number($posted['billing_eurocross_vat_number']) : '';
+        $country = isset($posted['billing_country']) ? eurocross_ai_sanitize_country_code($posted['billing_country']) : '';
+
+        if ($vat_number === '' || $country === '') {
+            return;
+        }
+
+        $validation = eurocross_ai_get_api()->validate_vies($vat_number);
+
+        if (is_wp_error($validation)) {
+            wc_add_notice(__('We could not verify the VAT number right now. Please try again.', 'eurocross-ai'), 'error');
+
+            return;
+        }
+
+        $valid = isset($validation['data']['valid']) ? (bool) $validation['data']['valid'] : false;
+        if (! $valid) {
+            wc_add_notice(__('The VAT number could not be validated with VIES.', 'eurocross-ai'), 'error');
+
+            return;
+        }
+
+        if (WC()->session) {
+            WC()->session->set('eurocross_vat_result', $this->calculate_vat_treatment($vat_number, $country));
+        }
+    }
+
+    /**
+     * Call the VAT/OSS endpoint and sanitize the result.
+     *
+     * @param  string  $vat_number  VAT number.
+     * @param  string  $customer_country  Customer country code.
+     * @return array
+     */
+    private function calculate_vat_treatment($vat_number, $customer_country)
+    {
+        $merchant_country = eurocross_ai_sanitize_country_code(eurocross_ai_get_option('eurocross_default_country'));
+
+        if ($merchant_country === '' && function_exists('wc_get_base_location')) {
+            $base_location = wc_get_base_location();
+            $merchant_country = eurocross_ai_sanitize_country_code(isset($base_location['country']) ? $base_location['country'] : '');
+        }
+
+        $response = eurocross_ai_get_api()->vat_check(
+            $customer_country,
+            $merchant_country,
+            $vat_number,
+            eurocross_ai_is_enabled('eurocross_use_oss')
+        );
+
+        if (is_wp_error($response)) {
+            return [
+                'error' => $response->get_error_message(),
+            ];
+        }
+
+        $data = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
+
+        return [
+            'chargeVat' => isset($data['chargeVat']) ? (bool) $data['chargeVat'] : null,
+            'rate' => isset($data['rate']) ? (float) $data['rate'] : null,
+            'reason' => isset($data['reason']) ? sanitize_text_field((string) $data['reason']) : '',
+        ];
+    }
+
+    /**
+     * Display the real VAT treatment returned by the API.
+     *
+     * @return void
+     */
+    public function display_vat_note()
+    {
+        if (! function_exists('WC') || ! WC()->session) {
+            return;
+        }
+
+        $result = WC()->session->get('eurocross_vat_result');
+        if (! is_array($result) || empty($result)) {
+            return;
+        }
+
+        if (! empty($result['error'])) {
+            echo '<div class="eurocross-vat-note eurocross-vat-note--error" role="status">';
+            echo '<p>'.esc_html(sanitize_text_field((string) $result['error'])).'</p>';
+            echo '</div>';
+
+            return;
+        }
+
+        echo '<div class="eurocross-vat-note" role="status">';
+
+        if (isset($result['chargeVat']) && (bool) $result['chargeVat'] === false) {
+            echo '<p><strong>'.esc_html__('Reverse charge applies.', 'eurocross-ai').'</strong></p>';
+        } elseif (isset($result['chargeVat']) && (bool) $result['chargeVat'] === true) {
+            echo '<p><strong>'.esc_html__('VAT is charged at checkout.', 'eurocross-ai').'</strong></p>';
+        }
+
+        if (isset($result['rate']) && $result['rate'] !== null) {
+            echo '<p>'.esc_html(
+                sprintf(
+                    /* translators: %s: VAT rate returned by the API. */
+                    __('Rate: %s%%', 'eurocross-ai'),
+                    sanitize_text_field((string) $result['rate'])
+                )
+            ).'</p>';
+        }
+
+        if (! empty($result['reason'])) {
+            echo '<p>'.esc_html(sanitize_text_field((string) $result['reason'])).'</p>';
+        }
+
+        echo '</div>';
+    }
+
+    /**
+     * Store the VAT treatment on the order.
+     *
+     * @param  int  $order_id  Order ID.
+     * @return void
+     */
+    public function save_order_meta($order_id)
+    {
+        $order_id = absint($order_id);
+        if (! $order_id) {
+            return;
+        }
+
+        if (function_exists('WC') && WC()->checkout()) {
+            $posted = WC()->checkout()->get_posted_data();
+            $vat_number = isset($posted['billing_eurocross_vat_number']) ? eurocross_ai_sanitize_vat_number($posted['billing_eurocross_vat_number']) : '';
+            if ($vat_number !== '') {
+                update_post_meta($order_id, '_eurocross_vat_number', $vat_number);
+            }
+        }
+
+        if (function_exists('WC') && WC()->session) {
+            $result = WC()->session->get('eurocross_vat_result');
+            if (is_array($result) && ! empty($result)) {
+                update_post_meta($order_id, '_eurocross_vat_result', eurocross_ai_sanitize_response_data($result));
+            }
+            WC()->session->set('eurocross_vat_result', null);
+        }
+    }
+
+    /**
+     * Translate the body of an order email.
+     *
+     * @param  string  $content  Email content.
+     * @param  WC_Email  $email  Email object.
+     * @return string
+     */
+    public function translate_order_email($content, $email = null)
+    {
+        if (! is_string($content) || $content === '' || is_admin()) {
+            return $content;
+        }
+
+        $target = $this->get_email_locale($email);
+        $source = eurocross_ai_get_option('eurocross_locale');
+        if ($target === '' || $target === $source || strlen($content) > 12000) {
+            return $content;
+        }
+
+        $translated = eurocross_ai_translate_text($content, $source, $target, 'order_email');
+        if ($translated === $content) {
+            return $content;
+        }
+
+        return wp_kses_post($translated);
+    }
+
+    /**
+     * Translate an order email subject.
+     *
+     * @param  string  $subject  Email subject.
+     * @param  WC_Email  $email  Email object.
+     * @return string
+     */
+    public function translate_email_subject($subject, $email = null)
+    {
+        if (! is_string($subject) || $subject === '') {
+            return $subject;
+        }
+
+        $target = $this->get_email_locale($email);
+        $source = eurocross_ai_get_option('eurocross_locale');
+        if ($target === '' || $target === $source) {
+            return $subject;
+        }
+
+        return sanitize_text_field(eurocross_ai_translate_text($subject, $source, $target, 'order_email_subject'));
+    }
+
+    /**
+     * Determine the locale for an email recipient.
+     *
+     * @param  WC_Email|null  $email  Email object.
+     * @return string
+     */
+    private function get_email_locale($email)
+    {
+        $recipient = '';
+        if (is_object($email) && isset($email->recipient)) {
+            $recipient = sanitize_email((string) $email->recipient);
+        }
+
+        if ($recipient !== '') {
+            $user = get_user_by('email', $recipient);
+            if ($user) {
+                $locale = eurocross_ai_sanitize_language_code(get_user_meta($user->ID, 'eurocross_locale', true));
+                if ($locale !== '') {
+                    return $locale;
+                }
+            }
+        }
+
+        return eurocross_ai_get_current_locale();
+    }
+
+    /**
+     * Translate a value only when a different target locale is active.
+     *
+     * @param  string  $text  Text to translate.
+     * @param  string  $context  Translation context.
+     * @param  WC_Product|int|null  $product  Product object or ID.
+     * @return string
+     */
+    private function maybe_translate($text, $context, $product = null)
+    {
+        if (! is_string($text) || $text === '' || is_admin()) {
+            return $text;
+        }
+
+        if (absint(apply_filters('eurocross_ai_disable_product_translation', 0, $product))) {
+            return $text;
+        }
+
+        $source = eurocross_ai_get_option('eurocross_locale');
+        $target = eurocross_ai_get_current_locale();
+
+        if ($source === '' || $target === '' || $source === $target) {
+            return $text;
+        }
+
+        return eurocross_ai_translate_text($text, $source, $target, $context);
+    }
+}

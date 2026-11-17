@@ -1,0 +1,151 @@
+/**
+ * EuroCross AI frontend components.
+ */
+:root {
+	--eurocross-primary: #7C0E44;
+	--eurocross-primary-dark: #6B0C3E;
+	--eurocross-primary-light: #9A1255;
+	--eurocross-accent: #E82757;
+	--eurocross-surface: #FFFFFF;
+	--eurocross-muted: #5A3A42;
+	--eurocross-border: #D1A8C8;
+}
+
+.eurocross-language-switcher {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 1rem 0;
+	font-family: inherit;
+}
+
+.eurocross-language-switcher label {
+	font-weight: 600;
+	color: var(--eurocross-primary);
+}
+
+.eurocross-lang-select {
+	min-width: 10rem;
+	padding: 0.5rem 0.75rem;
+	color: var(--eurocross-primary);
+	background: var(--eurocross-surface);
+	border: 1px solid var(--eurocross-border);
+	border-radius: 4px;
+	font: inherit;
+}
+
+.eurocross-lang-select:focus {
+	border-color: var(--eurocross-primary);
+	outline: 2px solid rgba(124, 14, 68, 0.2);
+}
+
+.eurocross-chatbot {
+	max-width: 32rem;
+	margin: 2rem auto;
+	padding: 1.25rem;
+	background: var(--eurocross-surface);
+	border: 1px solid var(--eurocross-border);
+	border-radius: 8px;
+	box-shadow: 0 4px 16px rgba(107, 12, 62, 0.08);
+	font-family: inherit;
+}
+
+.eurocross-chatbot-title {
+	margin-top: 0;
+	color: var(--eurocross-primary);
+}
+
+.eurocross-chatbot-messages {
+	min-height: 10rem;
+	max-height: 22rem;
+	overflow-y: auto;
+	padding: 0.75rem;
+	margin-bottom: 1rem;
+	background: #FBF7FA;
+	border-radius: 6px;
+}
+
+.eurocross-chatbot-messages p {
+	margin: 0 0 0.75rem;
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.eurocross-chatbot-form textarea {
+	width: 100%;
+	padding: 0.75rem;
+	border: 1px solid var(--eurocross-border);
+	border-radius: 4px;
+	font: inherit;
+	resize: vertical;
+}
+
+.eurocross-chatbot-send {
+	margin-top: 0.75rem;
+	padding: 0.6rem 1.25rem;
+	color: #FFFFFF;
+	background: var(--eurocross-primary);
+	border: 0;
+	border-radius: 4px;
+	cursor: pointer;
+}
+
+.eurocross-chatbot-send:hover {
+	background: var(--eurocross-primary-dark);
+}
+
+.eurocross-chatbot-send:disabled {
+	opacity: 0.6;
+	cursor: wait;
+}
+
+.eurocross-chatbot-status,
+.eurocross-vat-status,
+.eurocross-translate-status {
+	min-height: 1.25rem;
+	margin: 0.5rem 0 0;
+	font-size: 0.875rem;
+	color: var(--eurocross-muted);
+}
+
+.eurocross-chatbot-status.is-error,
+.eurocross-vat-status.is-error,
+.eurocross-translate-status.is-error {
+	color: var(--eurocross-accent);
+}
+
+.eurocross-vat-note {
+	margin: 1rem 0;
+	padding: 0.75rem 1rem;
+	border-left: 4px solid var(--eurocross-primary-light);
+	background: #FBF7FA;
+	color: var(--eurocross-primary-dark);
+}
+
+.eurocross-vat-note p {
+	margin: 0.25rem 0;
+}
+
+.eurocross-vat-note--error {
+	border-left-color: var(--eurocross-accent);
+}
+
+.eurocross-vat-row.is-disabled {
+	opacity: 0.5;
+}
+
+@media (max-width: 600px) {
+	.eurocross-chatbot {
+		margin: 1rem 0;
+		padding: 1rem;
+	}
+
+	.eurocross-language-switcher {
+		display: flex;
+		width: 100%;
+	}
+
+	.eurocross-lang-select {
+		width: 100%;
+	}
+}

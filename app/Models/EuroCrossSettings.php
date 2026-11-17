@@ -1,0 +1,232 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
+
+class EuroCrossSettings extends Model
+{
+    use HasFactory;
+
+    protected $table = 'eurocross_settings';
+
+    protected $fillable = [
+        'api_key',
+        'locale',
+        'plan',
+        'trial',
+        'trial_started_at',
+        'trial_expires',
+        'grace_expires',
+        'active_accounts',
+        'monthly_recurring_revenue',
+        'monthly_profit',
+        'subscription_provider',
+        'subscription_id',
+        'subscription_status',
+        'subscription_current_period_end',
+        'customer_id',
+        'billing_email',
+    ];
+
+    protected $hidden = [
+        'api_key',
+    ];
+
+    protected $casts = [
+        'trial' => 'boolean',
+        'trial_started_at' => 'datetime',
+        'trial_expires' => 'datetime',
+        'grace_expires' => 'datetime',
+        'active_accounts' => 'integer',
+        'monthly_recurring_revenue' => 'decimal:2',
+        'monthly_profit' => 'decimal:2',
+        'subscription_current_period_end' => 'datetime',
+    ];
+
+    public function apiKeys(): HasMany
+    {
+        return $this->hasMany(EuroCrossApiKey::class, 'shop_id');
+    }
+
+    public function vatSettings(): HasMany
+    {
+        return $this->hasMany(EuroCrossVatSettings::class, 'shop_id');
+    }
+
+    public function vatSetting(): HasOne
+    {
+        return $this->hasOne(EuroCrossVatSettings::class, 'shop_id');
+    }
+
+    public function translationUsage(): HasMany
+    {
+        return $this->hasMany(EuroCrossTranslationUsage::class, 'shop_id');
+    }
+
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(EuroCrossTransaction::class, 'shop_id');
+    }
+
+    public function auditLogs(): HasMany
+    {
+        return $this->hasMany(EuroCrossAuditLog::class, 'shop_id');
+    }
+
+    public function chatMessages(): HasMany
+    {
+        return $this->hasMany(EuroCrossChatMessage::class, 'shop_id');
+    }
+
+    public function isTrial(): bool
+    {
+        return $this->trial
+            && $this->trial_expires instanceof Carbon
+            && now()->lessThan($this->trial_expires);
+    }
+
+    public function trialRemainingDays(): int
+    {
+        if (! $this->isTrial() || ! $this->trial_expires instanceof Carbon) {
+            return 0;
+        }
+
+        return max(0, (int) $this->trial_expires->diffInDays(now()));
+    }
+
+    public function getRemainingTrialDays(): int
+    {
+        return $this->trialRemainingDays();
+    }
+
+    public function hasActiveSubscription(): bool
+    {
+        return in_array($this->subscription_status, ['active', 'trialing'], true)
+            && ! empty($this->subscription_id);
+    }
+
+    public function gracePeriodEndsAt(): ?Carbon
+    {
+        if (! $this->trial_expires instanceof Carbon) {
+            return null;
+        }
+
+        if ($this->grace_expires instanceof Carbon) {
+            return $this->grace_expires;
+        }
+
+        return $this->trial_expires->copy()->addDays((int) config('payment.trial.grace_period_days', 3));
+    }
+
+    public function isInGracePeriod(): bool
+    {
+        if ($this->hasActiveSubscription() || ! $this->trial_expires instanceof Carbon) {
+            return false;
+        }
+
+        $graceEndsAt = $this->gracePeriodEndsAt();
+
+        return ! $this->isTrial()
+            && $graceEndsAt instanceof Carbon
+            && now()->greaterThan($this->trial_expires)
+            && now()->lessThanOrEqualTo($graceEndsAt);
+    }
+
+    public function hasActiveAccess(): bool
+    {
+        return $this->isTrial() || $this->isInGracePeriod() || $this->hasActiveSubscription();
+    }
+
+    /**
+     * @return array{allowed: bool, reason: string, status: string}
+     */
+    public function accessStatus(): array
+    {
+        if ($this->hasActiveSubscription()) {
+            return [
+                'allowed' => true,
+                'reason' => 'Active subscription',
+                'status' => $this->subscription_status,
+            ];
+        }
+
+        if ($this->isTrial()) {
+            return [
+                'allowed' => true,
+                'reason' => 'Active trial',
+                'status' => 'trial',
+            ];
+        }
+
+        if ($this->isInGracePeriod()) {
+            return [
+                'allowed' => true,
+                'reason' => 'Trial grace period',
+                'status' => 'grace',
+            ];
+        }
+
+        return [
+            'allowed' => false,
+            'reason' => 'No active trial or subscription',
+            'status' => 'inactive',
+        ];
+    }
+
+    public function planPrice(): float
+    {
+        return (float) config("payment.plans.{$this->plan}.price", 0);
+    }
+
+    public function planWordLimit(): int
+    {
+        return (int) config("payment.plans.{$this->plan}.features.words", 0);
+    }
+
+    public function planLanguageLimit(): int
+    {
+        return (int) config("payment.plans.{$this->plan}.features.languages", 0);
+    }
+
+    public function rateLimit(): int
+    {
+        return (int) config("payment.plans.{$this->plan}.rate_limit", 60);
+    }
+
+    public function getPlanDisplayName(): string
+    {
+        return ucfirst($this->plan);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getPlanFeatures(): array
+    {
+        $features = config("payment.plans.{$this->plan}.features", []);
+
+        return [
+            'words' => number_format($this->planWordLimit()).' words/month',
+            'languages' => $this->planLanguageLimit().' languages',
+            'vat' => data_get($features, 'vat') === 'full' ? 'Full VAT OSS with VIES' : 'Basic VAT OSS support',
+            'chatbot' => data_get($features, 'chatbot') ? 'Included' : 'Not included',
+            'rate_limit' => $this->rateLimit().' requests/minute',
+        ];
+    }
+
+    public function trackUsage(int $tokens, int $strings = 0, int $words = 0, float $cost = 0): void
+    {
+        $this->translationUsage()->create([
+            'tokens_used' => $tokens,
+            'strings_translated' => $strings,
+            'words_translated' => $words,
+            'ai_cost' => $cost,
+            'usage_date' => now()->toDateString(),
+        ]);
+    }
+}

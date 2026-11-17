@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EuroCross AI - Plugin UI Preview</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --eurocross-primary: #7C0E44;
+            --eurocross-primary-dark: #6B0C3E;
+            --eurocross-primary-light: #9A1255;
+            --eurocross-accent: #E82757;
+            --eurocross-background: #F5F0F7;
+            --eurocross-surface: #FFFFFF;
+            --eurocross-text: #2D1B20;
+            --eurocross-text-light: #5A3A42;
+            --eurocross-border: #D1A8C8;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background: var(--eurocross-background); color: var(--eurocross-text); margin: 0; padding: 20px; }
+        .wrap { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: var(--eurocross-primary); font-weight: 600; margin-bottom: 1.5rem; }
+        .notice { padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; border-left: 4px solid; }
+        .notice-success { background: #e8f5e9; border-color: #4caf50; }
+        .notice-info { background: rgba(124, 14, 68, 0.05); border-color: var(--eurocross-primary); }
+        .form-table { width: 100%; border-collapse: collapse; }
+        .form-table tr { border-bottom: 1px solid var(--eurocross-border); }
+        .form-table th { padding: 12px 16px 12px 0; text-align: left; font-weight: 500; color: var(--eurocross-text); font-size: 0.875rem; }
+        .form-table td { padding: 12px 0; }
+        .form-table input, .form-table select { width: 100%; padding: 0.5rem; border: 1px solid var(--eurocross-border); border-radius: 4px; font-family: 'Poppins', sans-serif; font-size: 0.875rem; }
+        .form-table input:focus, .form-table select:focus { border-color: var(--eurocross-primary); outline: none; box-shadow: 0 0 0 2px rgba(124, 14, 68, 0.15); }
+        .large-text { width: 100%; }
+        .description { color: var(--eurocross-text-light); font-size: 0.875rem; margin-top: 0.5rem; }
+        .submit { background: var(--eurocross-primary); color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 4px; font-family: 'Poppins', sans-serif; font-weight: 500; font-size: 0.875rem; cursor: pointer; transition: background 0.2s; }
+        .submit:hover { background: var(--eurocross-primary-dark); }
+        .button { background: var(--eurocross-primary); color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; font-family: 'Poppins', sans-serif; font-weight: 500; font-size: 0.875rem; cursor: pointer; text-decoration: none; display: inline-block; }
+        .button-small { padding: 0.25rem 0.75rem; font-size: 0.75rem; }
+        .eurocross-language-switcher-widget { max-width: 200px; }
+        .eurocross-lang-select { width: 100%; padding: 0.5rem; border: 1px solid var(--eurocross-border); border-radius: 4px; font-family: 'Poppins', sans-serif; color: var(--eurocross-primary); }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+        .stat-card { background: var(--eurocross-surface); padding: 1.5rem; border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid var(--eurocross-border); }
+        .stat-number { font-size: 2rem; font-weight: 700; color: var(--eurocross-primary); display: block; margin-bottom: 0.25rem; }
+        .stat-label { color: var(--eurocross-text-light); font-size: 0.875rem; }
+        .progress-bar { background: var(--eurocross-surface); border-radius: 4px; overflow: hidden; height: 8px; margin-top: 1rem; }
+        .progress-fill { background: var(--eurocross-primary); height: 100%; border-radius: 4px; transition: width 0.5s ease; }
+        .header-bar { background: var(--eurocross-surface); border-bottom: 1px solid var(--eurocross-border); padding: 1rem 2rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .header-bar h1 { margin: 0; font-size: 1.25rem; }
+        .header-bar p { margin: 0; font-size: 0.875rem; color: var(--eurocross-text-light); }
+        .tab { padding: 0.5rem 1rem; border: none; background: transparent; cursor: pointer; font-family: 'Poppins', sans-serif; font-size: 0.875rem; color: var(--eurocross-text-light); border-bottom: 2px solid transparent; }
+        .tab.active { color: var(--eurocross-primary); border-bottom-color: var(--eurocross-primary); font-weight: 600; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="header-bar">
+            <div>
+                <h1>EuroCross AI</h1>
+                <p>SaaS Translation Platform</p>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button class="tab active" onclick="showTab('settings')">Settings</button>
+                <button class="tab" onclick="showTab('dashboard')">Dashboard</button>
+                <button class="tab" onclick="showTab('widget')">Language Switcher</button>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div id="settings" class="tab-content active">
+            <h1>EuroCross AI Settings</h1>
+
+            <p class="notice notice-info is-dismissible">
+                <strong>Trial active</strong>
+                <span>Expires: Nov 22, 2026 (14 days remaining)</span>
+                <a href="#" class="button button-small">Switch to Starter plan</a>
+            </p>
+
+            <form method="post" action="#">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">API Key</th>
+                        <td>
+                            <input type="text" name="eurocross_api_key" class="large-text" value="" placeholder="sk-..." />
+                            <p class="description">Enter your AI provider API key. Leave blank for trial mode.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Default Language</th>
+                        <td>
+                            <select name="eurocross_locale" class="regular-select">
+                                <option value="en" selected>English</option>
+                                <option value="fr">French</option>
+                                <option value="de">German</option>
+                                <option value="es">Spanish</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Plan</th>
+                        <td>
+                            <select name="eurocross_plan" class="regular-select">
+                                <option value="starter" selected>Starter (€12/mo) - 50k words, 3 languages, no chatbot</option>
+                                <option value="growth">Growth (€25/mo) - 100k words, 5 languages, chatbot included</option>
+                                <option value="scale">Scale (€65/mo) - 300k words, 15 languages, chatbot included</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">Trial Status</th>
+                        <td>
+                            <p>Trial expires:</p>
+                            <p><strong>Nov 22, 2026</strong></p>
+                            <p class="description">14-day free trial. No credit card required.</p>
+                        </td>
+                    </tr>
+                </table>
+                <button class="submit" type="submit">Save Changes</button>
+            </form>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboard" class="tab-content">
+            <h1>Dashboard</h1>
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <span class="stat-number">545+</span>
+                    <span class="stat-label">Active Accounts</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">13353</span>
+                    <span class="stat-label">MRR (EUR)</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-number">10215</span>
+                    <span class="stat-label">Monthly Profit</span>
+                </div>
+            </div>
+            <div style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid var(--eurocross-border);">
+                <h2 style="color: var(--eurocross-primary); font-weight: 500; margin-bottom: 1rem;">Monthly Profit</h2>
+                <div style="display: flex; align-items: baseline; gap: 0.5rem;">
+                    <span style="font-size: 2rem; font-weight: 700; color: var(--eurocross-primary);">10215</span>
+                    <span style="color: var(--eurocross-text-light);">TSh 30,000,000</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 34%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Language Switcher Tab -->
+        <div id="widget" class="tab-content">
+            <h1>Language Switcher Widget</h1>
+            <p class="description">Display a language switcher for EuroCross AI translations</p>
+            <div class="eurocross-language-switcher-widget" style="margin-top: 1rem;">
+                <select class="eurocross-lang-select">
+                    <option value="en" selected>English</option>
+                    <option value="fr">Français</option>
+                    <option value="de">Deutsch</option>
+                    <option value="es">Español</option>
+                    <option value="it">Italiano</option>
+                    <option value="pt">Português</option>
+                    <option value="nl">Nederlands</option>
+                    <option value="ar">العربية</option>
+                    <option value="zh">中文</option>
+                    <option value="ja">日本語</option>
+                </select>
+            </div>
+            <p class="description" style="margin-top: 1rem;">Shortcode: <code>[eurocross_language_switcher]</code></p>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

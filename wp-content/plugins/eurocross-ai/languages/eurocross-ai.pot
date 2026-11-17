@@ -1,0 +1,216 @@
+# Copyright (C) 2026 EuroCross AI
+# This file is distributed under the GPLv2 or later.
+msgid ""
+msgstr ""
+"Project-Id-Version: EuroCross AI 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/eurocross-ai\n"
+"POT-Creation-Date: 2026-11-17 00:00+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"X-Domain: eurocross-ai\n"
+
+#: eurocross-ai.php
+msgid "EuroCross AI"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Settings"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Dashboard"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Info"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "EuroCross AI Settings"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Connection"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Translation"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "VAT and OSS"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Chatbot"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Advanced"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "API URL"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "API key"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Default language"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Target languages"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Plan"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Use OSS"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Merchant VAT number"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Merchant country"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Enable chatbot"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Translate product titles"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Translate product descriptions"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Debug logging"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Save Changes"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Test connection"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Start trial"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Create checkout"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Connection successful."
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Connection failed."
+msgstr ""
+
+#: eurocross-ai.php
+msgid "EuroCross AI Dashboard"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Refresh data"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Loading live data…"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Connect your account"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Open settings"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "The API could not be reached"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "API status"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Available languages"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Chatbot status"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Trial"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "About EuroCross AI"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Language"
+msgstr ""
+
+msgid "Language switcher"
+msgstr ""
+
+msgid "Languages are currently unavailable. Please try again later."
+msgstr ""
+
+msgid "Chat with us"
+msgstr ""
+
+msgid "Your message"
+msgstr ""
+
+msgid "Type your message…"
+msgstr ""
+
+msgid "Send"
+msgstr ""
+
+msgid "VAT number (EU B2B)"
+msgstr ""
+
+msgid "I have an EU VAT number"
+msgstr ""
+
+msgid "Reverse charge applies."
+msgstr ""
+
+msgid "VAT is charged at checkout."
+msgstr ""
+
+msgid "No data returned."
+msgstr ""
+
+msgid "Not available"
+msgstr ""
+
+msgid "Yes"
+msgstr ""
+
+msgid "No"
+msgstr ""
