@@ -124,6 +124,7 @@ return [
      * Webhooks
      */
     'webhooks' => [
+        'gumroad' => env('APP_URL').'/eurocross/webhook/gumroad',
         'lemon_squeezy' => env('APP_URL').'/eurocross/webhook/lemon-squeezy',
         'stripe' => env('APP_URL').'/eurocross/webhook/stripe',
     ],

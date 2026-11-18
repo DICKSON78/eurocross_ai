@@ -8,10 +8,12 @@ use App\Models\EuroCrossAuditLog;
 use App\Models\EuroCrossSettings;
 use App\Models\EuroCrossTransaction;
 use App\Models\EuroCrossWebhook;
+use App\Services\Payment\GumroadWebhookVerifier;
 use App\Services\Payment\LemonSqueezyProvider;
 use App\Services\Payment\StripeProvider;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class WebhookController extends Controller
@@ -19,14 +21,12 @@ class WebhookController extends Controller
     public function __construct(
         private LemonSqueezyProvider $lemonSqueezy,
         private StripeProvider $stripe,
+        private GumroadWebhookVerifier $gumroadVerifier,
     ) {}
 
     public function gumroad(Request $request): JsonResponse
     {
-        $secret = (string) $request->query('secret', '');
-        $expectedSecret = (string) config('payment.gumroad.webhook_secret');
-
-        if ($expectedSecret === '' || ! hash_equals($expectedSecret, $secret)) {
+        if (! $this->gumroadVerifier->verify($request)) {
             return response()->json(['error' => 'Forbidden'], 403);
         }
 
@@ -41,19 +41,27 @@ class WebhookController extends Controller
 
         $isTest = filter_var($payload['test'] ?? false, FILTER_VALIDATE_BOOLEAN);
         if ($isTest && app()->environment('production')) {
-            Log::info('Gumroad test ping ignored in production');
+            Log::channel('api')->info('Gumroad test ping ignored in production');
 
-            return response()->json(['success' => true]);
+            return response()->json(['success' => true, 'status' => 'ignored_test']);
         }
 
+        $eventType = (string) ($payload['event'] ?? $payload['event_type'] ?? 'sale');
         $saleId = (string) ($payload['sale_id'] ?? $payload['id'] ?? '');
-        $eventId = $saleId !== '' ? $saleId : hash('sha256', json_encode($payload));
+        $subscriptionId = (string) ($payload['subscription_id'] ?? '');
+        $eventId = md5(implode('|', ['gumroad', $eventType, $saleId, $subscriptionId, (string) ($payload['charge_id'] ?? '')]));
 
-        if (EuroCrossWebhook::where('provider', 'gumroad')->where('event_id', $eventId)->where('status', 'processed')->exists()) {
+        Log::channel('api')->info('Gumroad ping received', [
+            'event' => $eventType,
+            'product_id' => (string) ($payload['product_id'] ?? ''),
+            'product_permalink' => (string) ($payload['product_permalink'] ?? ''),
+        ]);
+
+        if (EuroCrossWebhook::where('provider', 'gumroad')->where('event_id', $eventId)->exists()) {
             return response()->json(['success' => true, 'status' => 'duplicate']);
         }
 
-        ProcessGumroadWebhook::dispatch($payload);
+        ProcessGumroadWebhook::dispatch($payload, $eventId, $eventType);
 
         return response()->json(['success' => true]);
     }

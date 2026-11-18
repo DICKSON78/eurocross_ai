@@ -23,6 +23,14 @@ class ChatbotController extends Controller
     public function message(Request $request): JsonResponse
     {
         $settings = $this->shop($request);
+
+        if (! (bool) data_get(config("payment.plans.{$settings->plan}.features"), 'chatbot', false)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'The chatbot is not included in your plan. Upgrade to Growth or Scale to use it.',
+            ], 403);
+        }
+
         $validated = $request->validate([
             'message' => ['required', 'string', 'max:2000'],
             'language' => ['sometimes', 'string', Rule::in($this->languageCodes())],
@@ -86,6 +94,7 @@ class ChatbotController extends Controller
             'success' => true,
             'data' => [
                 'is_configured' => $hasStoredKey || filled(config('services.openai.key')),
+                'included' => (bool) data_get(config("payment.plans.{$settings->plan}.features"), 'chatbot', false),
                 'plan' => $settings->plan,
                 'rate_limit' => self::RATE_LIMIT,
                 'remaining' => $this->chatbotService

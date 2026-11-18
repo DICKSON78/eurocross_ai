@@ -50,7 +50,25 @@ class TranslationService
             ['code' => 'ar', 'name' => 'Arabic', 'native_name' => 'العربية'],
             ['code' => 'zh', 'name' => 'Chinese', 'native_name' => '中文'],
             ['code' => 'ja', 'name' => 'Japanese', 'native_name' => '日本語'],
+            ['code' => 'sv', 'name' => 'Swedish', 'native_name' => 'Svenska'],
+            ['code' => 'da', 'name' => 'Danish', 'native_name' => 'Dansk'],
+            ['code' => 'fi', 'name' => 'Finnish', 'native_name' => 'Suomi'],
+            ['code' => 'pl', 'name' => 'Polish', 'native_name' => 'Polski'],
+            ['code' => 'el', 'name' => 'Greek', 'native_name' => 'Ελληνικά'],
         ];
+    }
+
+    /**
+     * Languages included in the shop's current plan.
+     *
+     * @return array<int, array{code: string, name: string, native_name: string}>
+     */
+    public function allowedLanguages(EuroCrossSettings $shop): array
+    {
+        $limit = $shop->planLanguageLimit();
+        $languages = $this->languages();
+
+        return $limit > 0 ? array_slice($languages, 0, $limit) : $languages;
     }
 
     /**

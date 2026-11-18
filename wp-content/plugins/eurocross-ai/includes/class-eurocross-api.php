@@ -102,6 +102,28 @@ class EuroCross_AI_API
     }
 
     /**
+     * Exchange a one-time WordPress connection code for an API key.
+     *
+     * @param  string  $code  One-time code from the SaaS approval screen.
+     * @param  string  $site_url  WordPress site URL bound to the code.
+     * @param  string  $state  WordPress-generated state value.
+     * @return array|WP_Error
+     */
+    public function exchange_connect_code($code, $site_url, $state)
+    {
+        return $this->request(
+            'POST',
+            '/eurocross/connect/exchange',
+            [
+                'code' => (string) $code,
+                'site_url' => (string) $site_url,
+                'state' => (string) $state,
+            ],
+            false
+        );
+    }
+
+    /**
      * POST /eurocross/vat/check
      *
      * @param  string  $customer_country  Customer country code.
@@ -227,11 +249,12 @@ class EuroCross_AI_API
      * @param  string  $method  HTTP method.
      * @param  string  $path  API path.
      * @param  array|null  $payload  Optional JSON payload.
+     * @param  bool  $authenticated  Whether the request requires the stored API key.
      * @return array|WP_Error Decoded response body or error.
      */
-    private function request($method, $path, $payload = null)
+    private function request($method, $path, $payload = null, $authenticated = true)
     {
-        if ($this->api_key === '') {
+        if ($authenticated && $this->api_key === '') {
             return new WP_Error(
                 'eurocross_missing_api_key',
                 __('Enter your EuroCross AI API key in the plugin settings first.', 'eurocross-ai'),
@@ -241,14 +264,16 @@ class EuroCross_AI_API
 
         $url = $this->base_url.'/'.ltrim($path, '/');
 
+        $headers = ['Accept' => 'application/json'];
+        if ($authenticated) {
+            $headers['X-API-Key'] = $this->api_key;
+        }
+
         $args = [
             'method' => $method,
             'timeout' => $this->timeout,
             'redirection' => 3,
-            'headers' => [
-                'Accept' => 'application/json',
-                'X-API-Key' => $this->api_key,
-            ],
+            'headers' => $headers,
         ];
 
         if ($payload !== null) {
@@ -311,6 +336,9 @@ class EuroCross_AI_API
 
         if (array_key_exists('success', $decoded) && ! $decoded['success']) {
             $message = isset($decoded['message']) ? sanitize_text_field(wp_strip_all_tags((string) $decoded['message'])) : '';
+            if ($message === '' && isset($decoded['error'])) {
+                $message = sanitize_text_field(wp_strip_all_tags((string) $decoded['error']));
+            }
             if ($message === '') {
                 $message = __('The EuroCross AI API reported an unsuccessful request.', 'eurocross-ai');
             }

@@ -7,17 +7,36 @@ use App\Models\EuroCrossSettings;
 use App\Services\TranslationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 class TranslationController extends Controller
 {
     public function __construct(private TranslationService $translationService) {}
 
-    public function languages(): JsonResponse
+    public function languages(Request $request): JsonResponse
     {
+        $settings = $this->shop($request);
+        $allowedLanguages = $this->translationService->allowedLanguages($settings);
+        $plan = $settings->plan;
+
         return response()->json([
             'success' => true,
-            'data' => $this->translationService->languages(),
+            'data' => $allowedLanguages,
+            'meta' => [
+                'plan' => $plan,
+                'plan_name' => $settings->getPlanDisplayName(),
+                'status' => $settings->accessStatus()['status'],
+                'access_allowed' => $settings->hasActiveAccess(),
+                'limits' => [
+                    'languages' => $settings->planLanguageLimit(),
+                    'words' => $settings->planWordLimit(),
+                    'rate_limit' => $settings->rateLimit(),
+                    'vat' => (string) config("payment.plans.{$plan}.features.vat", 'basic'),
+                    'chatbot' => (bool) config("payment.plans.{$plan}.features.chatbot", false),
+                ],
+            ],
+            'all_languages' => $this->translationService->languages(),
         ]);
     }
 
@@ -27,7 +46,7 @@ class TranslationController extends Controller
         $validated = $request->validate([
             'text' => ['required', 'string', 'max:10000'],
             'source_lang' => ['sometimes', 'string', 'size:2'],
-            'target_lang' => ['required', 'string', Rule::in($this->languageCodes())],
+            'target_lang' => ['required', 'string', Rule::in($this->languageCodes($settings))],
         ]);
 
         $text = (string) $validated['text'];
@@ -78,7 +97,7 @@ class TranslationController extends Controller
             'texts' => ['required', 'array', 'min:1', 'max:100'],
             'texts.*' => ['required', 'string', 'max:10000'],
             'source_lang' => ['sometimes', 'string', 'size:2'],
-            'target_lang' => ['required', 'string', Rule::in($this->languageCodes())],
+            'target_lang' => ['required', 'string', Rule::in($this->languageCodes($settings))],
         ]);
 
         /** @var array<int, string> $texts */
@@ -125,9 +144,9 @@ class TranslationController extends Controller
     /**
      * @return array<int, string>
      */
-    private function languageCodes(): array
+    private function languageCodes(EuroCrossSettings $settings): array
     {
-        return array_column($this->translationService->languages(), 'code');
+        return array_column($this->translationService->allowedLanguages($settings), 'code');
     }
 
     private function countWords(string $text): int
@@ -145,8 +164,13 @@ class TranslationController extends Controller
             return null;
         }
 
+        $start = now()->startOfMonth();
+        if ($settings->words_reset_at instanceof Carbon && $settings->words_reset_at->greaterThan($start)) {
+            $start = $settings->words_reset_at->copy()->startOfDay();
+        }
+
         $used = (int) $settings->translationUsage()
-            ->whereBetween('usage_date', [now()->startOfMonth()->toDateString(), now()->endOfMonth()->toDateString()])
+            ->whereBetween('usage_date', [$start->toDateString(), now()->endOfMonth()->toDateString()])
             ->sum('words_translated');
 
         if ($used + $requestedWords > $limit) {

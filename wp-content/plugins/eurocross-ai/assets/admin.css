@@ -162,6 +162,26 @@
 	gap: 0.35rem;
 }
 
+.eurocross-language-select {
+	width: 100%;
+	max-width: 36rem;
+	min-height: 7rem;
+	padding: 0.35rem;
+	border: 1px solid var(--eurocross-border);
+	border-radius: 6px;
+	background: var(--eurocross-surface);
+}
+
+.eurocross-language-select option {
+	padding: 0.35rem 0.5rem;
+	border-radius: 3px;
+}
+
+.eurocross-language-select option:checked {
+	background: var(--eurocross-primary);
+	color: #FFFFFF;
+}
+
 .eurocross-settings-sidebar form label {
 	display: block;
 	margin: 0.75rem 0 0.25rem;

@@ -10,8 +10,9 @@ if (! defined('ABSPATH')) {
 /**
  * Registers the eurocross/v1 REST routes.
  *
- * Every route verifies the WordPress REST nonce. All calls to the Laravel SaaS
- * API are performed here, on the server, using the API client class.
+ * Browser routes verify the WordPress REST nonce. The SaaS-to-site plan sync
+ * route verifies a shared secret issued during the secure connect flow. All
+ * calls to the Laravel SaaS API are performed here, on the server.
  */
 class EuroCross_AI_REST
 {
@@ -33,6 +34,11 @@ class EuroCross_AI_REST
     public function register_routes()
     {
         $routes = [
+            '/plan-sync' => [
+                'methods' => 'POST',
+                'callback' => [$this, 'plan_sync'],
+                'permission_callback' => [$this, 'verify_site_secret'],
+            ],
             '/languages' => [
                 'methods' => 'GET',
                 'callback' => [$this, 'get_languages'],
@@ -129,6 +135,28 @@ class EuroCross_AI_REST
     }
 
     /**
+     * Verify the shared secret sent by the SaaS when pushing plan changes.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return true|WP_Error
+     */
+    public function verify_site_secret($request)
+    {
+        $secret = $request->get_header('X-EuroCross-Secret');
+        $expected = (string) eurocross_ai_get_option('eurocross_site_secret');
+
+        if ($expected === '' || ! is_string($secret) || ! hash_equals($expected, $secret)) {
+            return new WP_Error(
+                'eurocross_invalid_site_secret',
+                __('Invalid site secret.', 'eurocross-ai'),
+                ['status' => 401]
+            );
+        }
+
+        return true;
+    }
+
+    /**
      * Locale changes are restricted to users who can edit content.
      *
      * @param  WP_REST_Request  $request  Request object.
@@ -163,6 +191,38 @@ class EuroCross_AI_REST
             [
                 'success' => true,
                 'data' => eurocross_ai_get_languages(),
+            ]
+        );
+    }
+
+    /**
+     * POST eurocross/v1/plan-sync
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function plan_sync($request)
+    {
+        $payload = $request->get_json_params();
+        if (! is_array($payload) || empty($payload)) {
+            $payload = $request->get_params();
+        }
+
+        if (! eurocross_ai_apply_plan_payload($payload)) {
+            return new WP_Error(
+                'eurocross_invalid_plan_payload',
+                __('The plan payload is missing required plan or language data.', 'eurocross-ai'),
+                ['status' => 400]
+            );
+        }
+
+        return rest_ensure_response(
+            [
+                'success' => true,
+                'data' => [
+                    'plan' => (string) eurocross_ai_get_option('eurocross_plan'),
+                    'languages' => eurocross_ai_get_languages(),
+                ],
             ]
         );
     }

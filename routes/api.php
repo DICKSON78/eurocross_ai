@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ConnectController;
 use App\Http\Controllers\EuroCross\Api\AccountController;
 use App\Http\Controllers\EuroCross\Api\ApiKeyController;
 use App\Http\Controllers\EuroCross\Api\TranslationController;
@@ -30,6 +31,10 @@ Route::get('/health', function () {
         'demo_mode' => ! $hasAiProvider,
     ]);
 })->name('eurocross.health');
+
+Route::post('/connect/exchange', [ConnectController::class, 'exchange'])
+    ->middleware('throttle:10,1')
+    ->name('eurocross.connect.exchange');
 
 Route::prefix('webhook')->middleware('throttle:60,1')->group(function (): void {
     Route::post('/gumroad', [WebhookController::class, 'gumroad'])

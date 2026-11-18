@@ -21,43 +21,104 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
-## EuroCross AI — Gumroad Billing Setup
+## EuroCross — Gumroad Billing Setup
 
 ### Environment variables
-Set these in `.env` (read via `config/payment.php`):
 
 ```
 PAYMENT_PROVIDER=gumroad
+APP_URL=https://eurocross-ai.kadetech.online
 GUMROAD_ACCESS_TOKEN=
 GUMROAD_WEBHOOK_SECRET=
-GUMROAD_SELLER_ID=
+GUMROAD_SELLER_ID="45z_yh2gaNKAuqiazg0qsQ=="
 GUMROAD_PRODUCT_STARTER=eurocross-starter
 GUMROAD_PRODUCT_GROWTH=eurocross-growth
 GUMROAD_PRODUCT_SCALE=eurocross-scale
-GUMROAD_PRODUCT_ID_STARTER=GWkd8qsP7GxksJcVdr_oMw==
-GUMROAD_PRODUCT_ID_GROWTH=03Ex_UcTD52UiV3lhwHZhA==
-GUMROAD_PRODUCT_ID_SCALE=fM75G5JEZvgvN1MpprCdcA==
+GUMROAD_PRODUCT_ID_STARTER="GWkd8qsP7GxksJcVdr_oMw=="
+GUMROAD_PRODUCT_ID_GROWTH="03Ex_UcTD52UiV3lhwHZhA=="
+GUMROAD_PRODUCT_ID_SCALE="fM75G5JEZvgvN1MpprCdcA=="
 GUMROAD_CHECKOUT_STARTER=https://augustinodickson.gumroad.com/l/eurocross-starter
 GUMROAD_CHECKOUT_GROWTH=https://augustinodickson.gumroad.com/l/eurocross-growth
 GUMROAD_CHECKOUT_SCALE=https://augustinodickson.gumroad.com/l/eurocross-scale
 GUMROAD_TRIAL_DAYS=7
 ```
 
-### Gumroad Ping URL
-In Gumroad: Settings → Advanced → Ping, set:
-`https://MY-DOMAIN/eurocross/webhook/gumroad?secret=THE_SECRET`
+Quote any value ending in `==` in `.env`.
 
-### Register extra webhooks
+### Checkout
+
+The `/pricing` page embeds Gumroad's overlay by loading `https://gumroad.com/js/gumroad.js` exactly once. Subscribe links come from `GUMROAD_CHECKOUT_*`. Logged-in users get `?email=...&wanted=true` appended, but payment matching also works when a different email is typed (see manual review below).
+
+Short marketing links: `/starter`, `/growth`, `/scale` redirect to the configured checkout URLs.
+
+### Enable Ping + signed pings
+
+In Gumroad: **Settings → Advanced → Ping**:
+- Ping URL: `https://eurocross-ai.kadetech.online/eurocross/webhook/gumroad`
+- Enable **Sign pings**.
+
+The webhook verifies the `X-Gumroad-Signature` header as an HMAC-SHA256 digest of the raw body using `GUMROAD_WEBHOOK_SECRET`. If signing is disabled, a `?secret=` query parameter is accepted as a fallback. It also rejects requests whose `seller_id` does not match.
+
+> Note: Gumroad's public "Verifying pings" page could not be fetched when this was implemented. The header/algorithm/encoding follow the commonly documented `X-Gumroad-Signature` + HMAC-SHA256 hex convention and are flagged as unverified. The verifier accepts hex (with or without `sha256=` prefix) and base64 forms defensively.
+
+### Extra subscription events
+
 Run once (idempotent):
+
 ```
 php artisan gumroad:register-webhooks
 ```
 
-### Testing
-Use a 100% discount code in Gumroad to test checkout end-to-end without charging. Run queue worker for async webhook processing:
+This calls `POST https://api.gumroad.com/v2/resource_subscriptions` with `access_token`, `resource_name`, `post_url` for cancellation, subscription_ended, subscription_restarted, subscription_updated, refund, dispute, dispute_won. The current Gumroad API docs could not be read during implementation; the event names and parameters are taken from the request and should be verified in your Gumroad dashboard.
+
+### Queue worker (Supervisor)
+
+Webhook work is queued. Run under Supervisor:
+
 ```
+[program:eurocross-worker]
+command=php /home/kadepljk/eurocross-ai.kadetech.online/artisan queue:work --tries=3 --stop-when-empty
+autostart=true
+autorestart=true
+user=kadepljk
+redirect_stderr=true
+stdout_logfile=/home/kadepljk/eurocross-ai.kadetech.online/storage/logs/worker.log
+```
+
+Then `supervisorctl reread && supervisorctl update && supervisorctl start eurocross-worker`.
+
+### Manual review
+
+If a buyer's email does not match a user, the payment is stored in `eurocross_manual_payments` — no payment is lost.
+
+```
+php artisan gumroad:manual-payments
+php artisan gumroad:link-payment {event_id} {email}
+```
+
+### After-purchase page
+
+Set Gumroad's product redirect (if available) to:
+
+`https://eurocross-ai.kadetech.online/billing/thank-you`
+
+The page polls `/billing/status` and reloads once the plan is active.
+
+### Testing
+
+Use a 100% discount code in Gumroad to test checkout end-to-end without charging. Then run:
+
+```
+php artisan migrate
+php artisan config:clear
+php artisan test --compact
+php artisan gumroad:register-webhooks
 php artisan queue:work
 ```
+
+### Documentation caveat
+
+Gumroad's ping-verification and resource-subscription API docs could not be fetched from this environment. The webhook verifier and webhook-registration command are implemented from the provided specification plus the commonly used HMAC convention; verify them against Gumroad's current docs before relying on them in production.
 
 ## Learning Laravel
 

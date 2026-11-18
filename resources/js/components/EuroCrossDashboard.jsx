@@ -148,7 +148,20 @@ function RefreshIcon({ spinning = false }) {
 }
 
 export default function EuroCrossDashboard() {
-    const [apiKey, setApiKey] = useState(() => currentApiKey());
+    const [apiKey, setApiKey] = useState(() => {
+        const params = new URLSearchParams(window.location.search);
+        const keyFromUrl = params.get('key');
+
+        if (keyFromUrl) {
+            try {
+                return writeApiKey(keyFromUrl);
+            } catch {
+                // fall through to stored key
+            }
+        }
+
+        return currentApiKey();
+    });
     const [activeView, setActiveView] = useState('overview');
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [authError, setAuthError] = useState('');

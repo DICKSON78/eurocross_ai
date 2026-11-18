@@ -1,13 +1,13 @@
 <?php
 /**
  * Plugin Name: EuroCross AI
- * Plugin URI: https://eurocross.ai
+ * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Author: EuroCross AI
- * Author URI: https://eurocross.ai
+ * Author URI: https://eurocross-ai.kadetech.online
  * License: GPLv2 or later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: eurocross-ai
@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.0.0');
+    define('EUROCROSS_AI_VERSION', '1.1.0');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -51,8 +51,11 @@ function eurocross_ai_default_options()
     return [
         'eurocross_api_url' => 'https://eurocross-ai.kadetech.online',
         'eurocross_api_key' => '',
+        'eurocross_site_secret' => '',
         'eurocross_locale' => 'en',
         'eurocross_plan' => 'starter',
+        'eurocross_plan_limits' => [],
+        'eurocross_last_plan_sync' => 0,
         'eurocross_target_languages' => [],
         'eurocross_use_oss' => 0,
         'eurocross_vat_number' => '',
@@ -234,20 +237,19 @@ function eurocross_ai_sanitize_response_data($value)
 /**
  * Return the shared API client.
  *
+ * @param  bool  $reset  Rebuild the client after the API key or URL changes.
  * @return EuroCross_AI_API
  */
-function eurocross_ai_get_api()
+function eurocross_ai_get_api($reset = false)
 {
-    static $api = null;
-
-    if ($api === null) {
-        $api = new EuroCross_AI_API(
+    if ($reset || ! isset($GLOBALS['eurocross_ai_api_client'])) {
+        $GLOBALS['eurocross_ai_api_client'] = new EuroCross_AI_API(
             eurocross_ai_get_option('eurocross_api_url'),
             eurocross_ai_get_option('eurocross_api_key')
         );
     }
 
-    return $api;
+    return $GLOBALS['eurocross_ai_api_client'];
 }
 
 /**
@@ -280,19 +282,34 @@ function eurocross_ai_log($message, $context = [])
 }
 
 /**
- * Fetch and cache the languages exposed by the SaaS API.
+ * Clear cached language and dashboard data.
+ *
+ * @return void
+ */
+function eurocross_ai_clear_language_cache()
+{
+    delete_transient('eurocross_language_payload');
+    delete_transient('eurocross_dashboard_data');
+}
+
+/**
+ * Fetch and cache plan-aware language data from the SaaS API.
  *
  * @param  bool  $force  Bypass the cache.
- * @return array<int,array<string,string>>
+ * @return array{languages: array<int,array<string,string>>, meta: array<string,mixed>, all_languages: array<int,array<string,string>>}
  */
-function eurocross_ai_get_languages($force = false)
+function eurocross_ai_get_language_payload($force = false)
 {
-    $cache_key = 'eurocross_languages';
+    $cache_key = 'eurocross_language_payload';
 
     if (! $force) {
         $cached = get_transient($cache_key);
-        if (is_array($cached) && ! empty($cached)) {
-            return $cached;
+        if (is_array($cached) && isset($cached['languages']) && is_array($cached['languages'])) {
+            return [
+                'languages' => $cached['languages'],
+                'meta' => isset($cached['meta']) && is_array($cached['meta']) ? $cached['meta'] : [],
+                'all_languages' => isset($cached['all_languages']) && is_array($cached['all_languages']) ? $cached['all_languages'] : [],
+            ];
         }
     }
 
@@ -300,11 +317,41 @@ function eurocross_ai_get_languages($force = false)
     if (is_wp_error($response)) {
         eurocross_ai_log('Could not fetch languages', ['error' => $response->get_error_message()]);
 
-        return [];
+        return ['languages' => [], 'meta' => [], 'all_languages' => []];
     }
 
+    $languages = eurocross_ai_sanitize_language_list(isset($response['data']) ? $response['data'] : []);
+    $meta = isset($response['meta']) && is_array($response['meta'])
+        ? eurocross_ai_sanitize_response_data($response['meta'])
+        : [];
+    $allLanguages = eurocross_ai_sanitize_language_list(isset($response['all_languages']) ? $response['all_languages'] : $languages);
+
+    $payload = [
+        'languages' => $languages,
+        'meta' => $meta,
+        'all_languages' => $allLanguages,
+    ];
+
+    if (! empty($languages)) {
+        set_transient($cache_key, $payload, 12 * HOUR_IN_SECONDS);
+    }
+
+    return $payload;
+}
+
+/**
+ * Sanitize a list of languages returned by the SaaS API.
+ *
+ * @param  mixed  $raw  Raw language list.
+ * @return array<int,array<string,string>>
+ */
+function eurocross_ai_sanitize_language_list($raw)
+{
     $languages = [];
-    $raw = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
+
+    if (! is_array($raw)) {
+        return $languages;
+    }
 
     foreach ($raw as $language) {
         if (! is_array($language)) {
@@ -323,11 +370,99 @@ function eurocross_ai_get_languages($force = false)
         ];
     }
 
-    if (! empty($languages)) {
-        set_transient($cache_key, $languages, 12 * HOUR_IN_SECONDS);
+    return $languages;
+}
+
+/**
+ * Fetch the languages included in the connected plan.
+ *
+ * @param  bool  $force  Bypass the cache.
+ * @return array<int,array<string,string>>
+ */
+function eurocross_ai_get_languages($force = false)
+{
+    return eurocross_ai_get_language_payload($force)['languages'];
+}
+
+/**
+ * Fetch the connected plan metadata.
+ *
+ * @param  bool  $force  Bypass the cache.
+ * @return array<string,mixed>
+ */
+function eurocross_ai_get_plan_context($force = false)
+{
+    return eurocross_ai_get_language_payload($force)['meta'];
+}
+
+/**
+ * Persist a plan payload received from the SaaS API.
+ *
+ * @param  array<string,mixed>  $payload  Plan payload.
+ * @return bool
+ */
+function eurocross_ai_apply_plan_payload($payload)
+{
+    if (! is_array($payload)) {
+        return false;
     }
 
-    return $languages;
+    $meta = isset($payload['meta']) && is_array($payload['meta']) ? $payload['meta'] : $payload;
+    $plan = sanitize_key(isset($meta['plan']) ? (string) $meta['plan'] : '');
+    if (! in_array($plan, ['starter', 'growth', 'scale'], true)) {
+        return false;
+    }
+
+    $allowed = eurocross_ai_sanitize_language_list(isset($meta['allowed_languages']) ? $meta['allowed_languages'] : []);
+    if (empty($allowed)) {
+        $allowed = eurocross_ai_sanitize_language_list(isset($meta['languages']) ? $meta['languages'] : []);
+    }
+    if (empty($allowed)) {
+        return false;
+    }
+
+    $allowedCodes = wp_list_pluck($allowed, 'code');
+    $limits = isset($meta['limits']) && is_array($meta['limits'])
+        ? eurocross_ai_sanitize_response_data($meta['limits'])
+        : [];
+
+    update_option('eurocross_plan', $plan, false);
+    update_option('eurocross_plan_limits', $limits, false);
+    update_option('eurocross_last_plan_sync', time(), false);
+
+    $selected = array_values(array_intersect(
+        (array) eurocross_ai_get_option('eurocross_target_languages'),
+        $allowedCodes
+    ));
+    if (empty($selected)) {
+        $limit = absint(isset($limits['languages']) ? $limits['languages'] : count($allowedCodes));
+        $selected = array_slice($allowedCodes, 0, $limit > 0 ? $limit : count($allowedCodes));
+    }
+    update_option('eurocross_target_languages', $selected, false);
+
+    eurocross_ai_clear_language_cache();
+
+    return true;
+}
+
+/**
+ * Build the SaaS URL that starts the WordPress connection flow.
+ *
+ * @return string
+ */
+function eurocross_ai_connect_url()
+{
+    $state = wp_generate_password(32, false, false);
+    set_transient('eurocross_connect_state_'.get_current_user_id(), $state, 10 * MINUTE_IN_SECONDS);
+
+    $args = [
+        'site_url' => home_url(),
+        'site_name' => get_bloginfo('name'),
+        'return_url' => admin_url('admin-post.php'),
+        'state' => $state,
+    ];
+
+    return untrailingslashit(eurocross_ai_get_option('eurocross_api_url')).'/connect/start?'.http_build_query($args, '', '&', PHP_QUERY_RFC3986);
 }
 
 /**
@@ -723,6 +858,7 @@ class EuroCross_AI
 
         add_action(EUROCROSS_AI_CRON_HOOK, [$this, 'run_daily_sync']);
 
+        add_action('admin_post_eurocross_connect', [$this, 'handle_connect_return']);
         add_action('admin_post_eurocross_start_trial', [$this, 'handle_start_trial']);
         add_action('admin_post_eurocross_checkout', [$this, 'handle_checkout']);
         add_action('admin_post_eurocross_dismiss_notice', [$this, 'dismiss_notice']);
@@ -828,7 +964,10 @@ class EuroCross_AI
             set_transient('eurocross_chatbot_status', eurocross_ai_sanitize_response_data($chatbot_status), DAY_IN_SECONDS);
         }
 
-        eurocross_ai_get_languages(true);
+        $languagePayload = eurocross_ai_get_language_payload(true);
+        if (! empty($languagePayload['meta'])) {
+            eurocross_ai_apply_plan_payload($languagePayload);
+        }
         eurocross_ai_get_dashboard_data(true);
     }
 
@@ -890,7 +1029,7 @@ class EuroCross_AI
             [
                 'type' => 'string',
                 'sanitize_callback' => 'eurocross_ai_sanitize_api_url',
-                'default' => 'https://app.eurocross.ai',
+                'default' => 'https://eurocross-ai.kadetech.online',
             ]
         );
         register_setting(
@@ -909,15 +1048,6 @@ class EuroCross_AI
                 'type' => 'string',
                 'sanitize_callback' => 'eurocross_ai_sanitize_language_code',
                 'default' => 'en',
-            ]
-        );
-        register_setting(
-            'eurocross-general',
-            'eurocross_plan',
-            [
-                'type' => 'string',
-                'sanitize_callback' => 'eurocross_ai_sanitize_plan',
-                'default' => 'starter',
             ]
         );
         register_setting(
@@ -1004,7 +1134,7 @@ class EuroCross_AI
             'eurocross_api_key' => [__('API key', 'eurocross-ai'), 'field_api_key', 'eurocross_api'],
             'eurocross_locale' => [__('Default language', 'eurocross-ai'), 'field_locale', 'eurocross_translation'],
             'eurocross_target_languages' => [__('Target languages', 'eurocross-ai'), 'field_target_languages', 'eurocross_translation'],
-            'eurocross_plan' => [__('Plan', 'eurocross-ai'), 'field_plan', 'eurocross_translation'],
+            'eurocross_plan' => [__('Current plan', 'eurocross-ai'), 'field_plan_summary', 'eurocross_translation'],
             'eurocross_use_oss' => [__('Use OSS', 'eurocross-ai'), 'field_use_oss', 'eurocross_vat'],
             'eurocross_vat_number' => [__('Merchant VAT number', 'eurocross-ai'), 'field_vat_number', 'eurocross_vat'],
             'eurocross_default_country' => [__('Merchant country', 'eurocross-ai'), 'field_default_country', 'eurocross_vat'],
@@ -1130,37 +1260,58 @@ class EuroCross_AI
     {
         $languages = eurocross_ai_get_languages();
         $selected = (array) eurocross_ai_get_option('eurocross_target_languages');
+        $context = eurocross_ai_get_plan_context();
+        $limit = isset($context['limits']['languages']) ? absint($context['limits']['languages']) : count($languages);
 
         if (empty($languages)) {
-            echo '<p class="description">'.esc_html__('No languages are available from the API yet.', 'eurocross-ai').'</p>';
+            echo '<p class="description">'.esc_html__('Connect your account to load the languages included in your plan.', 'eurocross-ai').'</p>';
 
             return;
         }
-
-        echo '<fieldset class="eurocross-language-checkboxes">';
-        foreach ($languages as $language) {
-            $code = $language['code'];
-            $name = $language['native_name'] ? $language['native_name'] : $language['name'];
-            echo '<label><input type="checkbox" name="eurocross_target_languages[]" value="'.esc_attr($code).'"'.checked(in_array($code, $selected, true), true, false).' /> '.esc_html($name).'</label>';
-        }
-        echo '</fieldset>';
+        ?>
+		<select name="eurocross_target_languages[]" class="eurocross-language-select" multiple size="<?php echo esc_attr(min(8, max(3, count($languages)))); ?>">
+			<?php foreach ($languages as $language) { ?>
+				<option value="<?php echo esc_attr($language['code']); ?>"<?php selected(in_array($language['code'], $selected, true), true, true); ?>><?php echo esc_html($language['native_name'] ? $language['native_name'] : $language['name']); ?></option>
+			<?php } ?>
+		</select>
+		<p class="description">
+			<?php
+            echo esc_html(
+                sprintf(
+                    /* translators: %d: number of languages included in the plan. */
+                    __('Select up to %d languages included in your package. Hold Ctrl/Cmd to choose more than one.', 'eurocross-ai'),
+                    $limit > 0 ? $limit : count($languages)
+                )
+            );
+        ?>
+		</p>
+		<?php
     }
 
     /**
-     * Plan field.
+     * Read-only plan field. The plan is controlled by the SaaS subscription.
      *
      * @return void
      */
-    public function field_plan()
+    public function field_plan_summary()
     {
         $plan = eurocross_ai_get_option('eurocross_plan');
-        $plans = ['starter', 'growth', 'scale'];
+        $context = eurocross_ai_get_plan_context();
+        $limits = isset($context['limits']) && is_array($context['limits']) ? $context['limits'] : [];
         ?>
-		<select name="eurocross_plan" class="regular-select">
-			<?php foreach ($plans as $plan_option) { ?>
-				<option value="<?php echo esc_attr($plan_option); ?>"<?php selected($plan, $plan_option); ?>><?php echo esc_html(ucfirst($plan_option)); ?></option>
-			<?php } ?>
-		</select>
+		<p><strong><?php echo esc_html(ucfirst((string) $plan)); ?></strong></p>
+		<p class="description">
+			<?php
+            echo esc_html(
+                sprintf(
+                    /* translators: 1: language limit, 2: monthly word limit. */
+                    __('Managed by your EuroCross subscription: %1$d languages and %2$s words per month.', 'eurocross-ai'),
+                    absint(isset($limits['languages']) ? $limits['languages'] : 0),
+                    number_format_i18n(absint(isset($limits['words']) ? $limits['words'] : 0))
+                )
+            );
+        ?>
+		</p>
 		<?php
     }
 
@@ -1256,6 +1407,26 @@ class EuroCross_AI
      */
     public function settings_page()
     {
+        if (isset($_GET['eurocross_refresh'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            check_admin_referer('eurocross_refresh_settings');
+
+            $payload = eurocross_ai_get_language_payload(true);
+            if (eurocross_ai_apply_plan_payload($payload)) {
+                $this->flash_and_redirect(__('Plan and languages refreshed from EuroCross.', 'eurocross-ai'));
+            }
+            $this->flash_and_redirect(__('The plan could not be refreshed. Check the connection and try again.', 'eurocross-ai'), 'error');
+        }
+
+        $refresh_url = wp_nonce_url(
+            add_query_arg(
+                [
+                    'page' => 'eurocross-ai-settings',
+                    'eurocross_refresh' => '1',
+                ],
+                admin_url('admin.php')
+            ),
+            'eurocross_refresh_settings'
+        );
         ?>
 		<div class="wrap eurocross-ai-page eurocross-settings">
 			<h1><?php esc_html_e('EuroCross AI Settings', 'eurocross-ai'); ?></h1>
@@ -1281,6 +1452,15 @@ class EuroCross_AI
 
 				<aside class="eurocross-settings-sidebar">
 					<section class="eurocross-card">
+						<h2><?php esc_html_e('Connect your account', 'eurocross-ai'); ?></h2>
+						<p><?php esc_html_e('Link this site to your EuroCross account. Your purchased plan and its languages are applied automatically.', 'eurocross-ai'); ?></p>
+						<a class="button button-primary" href="<?php echo esc_url(eurocross_ai_connect_url()); ?>"><?php esc_html_e('Connect with EuroCross', 'eurocross-ai'); ?></a>
+						<p class="description">
+							<a href="<?php echo esc_url($refresh_url); ?>"><?php esc_html_e('Refresh plan and languages', 'eurocross-ai'); ?></a>
+						</p>
+					</section>
+
+					<section class="eurocross-card">
 						<h2><?php esc_html_e('Connection test', 'eurocross-ai'); ?></h2>
 						<p><?php esc_html_e('Check that the saved API key can reach the SaaS API.', 'eurocross-ai'); ?></p>
 						<button type="button" class="button button-secondary" data-eurocross-test-connection><?php esc_html_e('Test connection', 'eurocross-ai'); ?></button>
@@ -1288,37 +1468,9 @@ class EuroCross_AI
 					</section>
 
 					<section class="eurocross-card">
-						<h2><?php esc_html_e('Free trial', 'eurocross-ai'); ?></h2>
-						<p><?php esc_html_e('Start a trial through the EuroCross AI API.', 'eurocross-ai'); ?></p>
-						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" data-eurocross-ajax-form="eurocross_start_trial">
-							<input type="hidden" name="action" value="eurocross_start_trial" />
-							<?php wp_nonce_field('eurocross_start_trial'); ?>
-							<button type="submit" class="button button-primary"><?php esc_html_e('Start trial', 'eurocross-ai'); ?></button>
-							<span class="eurocross-ajax-status" aria-live="polite"></span>
-						</form>
-					</section>
-
-					<section class="eurocross-card">
-						<h2><?php esc_html_e('Checkout', 'eurocross-ai'); ?></h2>
-						<p><?php esc_html_e('Create a hosted checkout session through the API.', 'eurocross-ai'); ?></p>
-						<form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" data-eurocross-ajax-form="eurocross_checkout">
-							<input type="hidden" name="action" value="eurocross_checkout" />
-							<?php wp_nonce_field('eurocross_checkout'); ?>
-							<label>
-								<span><?php esc_html_e('Plan', 'eurocross-ai'); ?></span>
-								<select name="eurocross_plan" class="regular-select">
-									<?php foreach (['starter', 'growth', 'scale'] as $plan_option) { ?>
-										<option value="<?php echo esc_attr($plan_option); ?>"<?php selected(eurocross_ai_get_option('eurocross_plan'), $plan_option); ?>><?php echo esc_html(ucfirst($plan_option)); ?></option>
-									<?php } ?>
-								</select>
-							</label>
-							<label>
-								<span><?php esc_html_e('Email', 'eurocross-ai'); ?></span>
-								<input type="email" name="eurocross_email" class="regular-text" value="<?php echo esc_attr(wp_get_current_user()->user_email); ?>" required />
-							</label>
-							<button type="submit" class="button button-secondary"><?php esc_html_e('Create checkout', 'eurocross-ai'); ?></button>
-							<span class="eurocross-ajax-status" aria-live="polite"></span>
-						</form>
+						<h2><?php esc_html_e('Manage subscription', 'eurocross-ai'); ?></h2>
+						<p><?php esc_html_e('Upgrade, downgrade or cancel from your EuroCross dashboard. Changes sync back to this site.', 'eurocross-ai'); ?></p>
+						<a class="button button-secondary" href="<?php echo esc_url('https://eurocross-ai.kadetech.online/dashboard/billing'); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open billing', 'eurocross-ai'); ?></a>
 					</section>
 				</aside>
 			</div>
@@ -1803,6 +1955,57 @@ class EuroCross_AI
         }
 
         return $url;
+    }
+
+    /**
+     * Exchange the one-time code returned by the SaaS connection screen.
+     *
+     * The WordPress-generated state transient is the CSRF check for this
+     * callback, so it is consumed before any code exchange is attempted.
+     *
+     * @return void
+     */
+    public function handle_connect_return()
+    {
+        if (! current_user_can('manage_options')) {
+            wp_die(esc_html__('You are not allowed to perform this action.', 'eurocross-ai'), 403);
+        }
+
+        $code = isset($_GET['code']) ? sanitize_text_field(wp_unslash($_GET['code'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $state = isset($_GET['state']) ? sanitize_text_field(wp_unslash($_GET['state'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $site_url = isset($_GET['site_url']) ? esc_url_raw(wp_unslash($_GET['site_url'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        $state_key = 'eurocross_connect_state_'.get_current_user_id();
+        $expected_state = get_transient($state_key);
+        delete_transient($state_key);
+
+        if ($code === '' || $state === '' || $site_url === ''
+            || ! is_string($expected_state) || ! hash_equals($expected_state, $state)) {
+            $this->flash_and_redirect(__('The connection request expired or is invalid. Start again from your WordPress admin.', 'eurocross-ai'), 'error');
+        }
+
+        if (untrailingslashit($site_url) !== untrailingslashit(home_url())) {
+            $this->flash_and_redirect(__('The connection code belongs to a different site.', 'eurocross-ai'), 'error');
+        }
+
+        $response = eurocross_ai_get_api()->exchange_connect_code($code, $site_url, $state);
+        if (is_wp_error($response)) {
+            $this->flash_and_redirect($response->get_error_message(), 'error');
+        }
+
+        $data = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
+        $api_key = eurocross_ai_sanitize_api_key(isset($data['api_key']) ? $data['api_key'] : '');
+        $site_secret = sanitize_text_field(isset($data['site_secret']) ? (string) $data['site_secret'] : '');
+
+        if ($api_key === '' || $site_secret === '' || ! eurocross_ai_apply_plan_payload($data)) {
+            $this->flash_and_redirect(__('EuroCross returned an incomplete connection response.', 'eurocross-ai'), 'error');
+        }
+
+        update_option('eurocross_api_key', $api_key, false);
+        update_option('eurocross_site_secret', $site_secret, false);
+        eurocross_ai_get_api(true);
+
+        $this->flash_and_redirect(__('EuroCross connected. Your plan and languages are now synced.', 'eurocross-ai'));
     }
 
     /**

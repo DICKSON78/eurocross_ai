@@ -49,8 +49,11 @@ class EuroCross_AI_Uninstall
         $option_names = [
             'eurocross_api_url',
             'eurocross_api_key',
+            'eurocross_site_secret',
             'eurocross_locale',
             'eurocross_plan',
+            'eurocross_plan_limits',
+            'eurocross_last_plan_sync',
             'eurocross_target_languages',
             'eurocross_use_oss',
             'eurocross_vat_number',
@@ -94,6 +97,8 @@ class EuroCross_AI_Uninstall
     {
         $known_transients = [
             'eurocross_languages',
+            'eurocross_language_payload',
+            'eurocross_dashboard_data',
             'eurocross_connection_status',
             'eurocross_chatbot_status',
         ];

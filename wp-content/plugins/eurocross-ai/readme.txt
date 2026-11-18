@@ -1,11 +1,11 @@
 === EuroCross AI ===
 Contributors: eurocrossai
-Donate link: https://eurocross.ai
+Donate link: https://eurocross-ai.kadetech.online
 Tags: translation, woocommerce, multilingual, vat, chatbot
 Requires at least: 6.2
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -27,7 +27,7 @@ EuroCross AI connects your WooCommerce store to your EuroCross AI SaaS account. 
 
 = External service dependency =
 
-This plugin requires an active EuroCross AI SaaS account and API key. It sends text submitted for translation, VAT numbers and chat messages to the API URL configured in the settings (default: `https://app.eurocross.ai`). The API key is stored on the server and is never exposed to JavaScript or to site visitors.
+This plugin requires an active EuroCross AI SaaS account. Use **Connect with EuroCross** in the settings to link this site securely and receive an API key automatically. The plugin sends text submitted for translation, VAT numbers and chat messages to the API URL configured in the settings (default: `https://eurocross-ai.kadetech.online`). The API key and site secret are stored on the server and are never exposed to JavaScript or to site visitors.
 
 = Privacy =
 
@@ -38,9 +38,9 @@ The plugin stores the configured settings, cached translations, cached language 
 1. Upload the `eurocross-ai` folder to the `/wp-content/plugins/` directory, or install the plugin through the WordPress Plugins screen.
 2. Activate the plugin through the Plugins screen in WordPress.
 3. Go to **EuroCross AI > Settings**.
-4. Enter your SaaS API key and, if needed, change the API URL.
-5. Choose the default language, target languages and the WooCommerce translation and VAT options.
-6. Click **Save Changes**, then use **Test connection** to verify the API key.
+4. Click **Connect with EuroCross**, sign in to your SaaS account and approve the site. The API key, plan and languages are returned to WordPress server-to-server.
+5. Choose the default language, target languages and the WooCommerce translation and VAT options. The language dropdown only lists languages included in your purchased plan.
+6. Click **Save Changes**, then use **Test connection** to verify the connection. Plan and language changes are pushed to the site after each subscription change.
 
 == Frequently Asked Questions ==
 
@@ -50,7 +50,7 @@ No. The language switcher, REST endpoints and chatbot work without WooCommerce. 
 
 = Where do I get an API key? =
 
-Create an account with EuroCross AI and copy the key from your SaaS dashboard. Enter it in the plugin settings; it is sent only in server-side requests as the `X-API-Key` header.
+Use **Connect with EuroCross** in the plugin settings. After you approve the site in the SaaS dashboard, the key is exchanged server-to-server and stored in WordPress options. It is sent only in server-side requests as the `X-API-Key` header.
 
 = Can I use the plugin without an API key? =
 
@@ -58,7 +58,7 @@ No. All translation, VAT and chatbot calls require a valid key. The settings pag
 
 = How are languages listed in the switcher? =
 
-The switcher calls the SaaS languages endpoint and caches the real response in a transient. If the API cannot be reached, the switcher shows an unavailable message rather than a hardcoded language list.
+The switcher calls the SaaS languages endpoint and caches the plan-limited response in a transient. Only languages included in the connected subscription are offered. If the API cannot be reached, the switcher shows an unavailable message rather than a hardcoded language list.
 
 = How do I display the chatbot? =
 
@@ -84,6 +84,12 @@ Uninstalling the plugin deletes its options, transients, cached translations, us
 
 == Changelog ==
 
+= 1.1.0 =
+* Secure connect flow: the plugin generates a state value, the user approves in the SaaS dashboard, and a one-time code is exchanged server-to-server for an API key and site secret.
+* Plan and language limits are pushed to connected sites after subscription changes via a secret-protected REST endpoint.
+* Target languages use a multiselect populated only from the purchased plan; the plan field is read-only.
+* Updated default API URL and documentation for the live EuroCross SaaS domain.
+
 = 1.0.0 =
 * Initial WordPress.org release.
 * Server-side API client using the WordPress HTTP API with timeouts and consistent error handling.
@@ -94,6 +100,9 @@ Uninstalling the plugin deletes its options, transients, cached translations, us
 * Daily health sync, debug logging and complete uninstall cleanup.
 
 == Upgrade Notice ==
+
+= 1.1.0 =
+Reconnect from EuroCross AI > Settings to enable automatic plan and language syncing. A EuroCross AI SaaS account is required.
 
 = 1.0.0 =
 First release. A EuroCross AI SaaS account and API key are required.

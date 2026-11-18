@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+    @php
+        $ecTitle = trim($__env->yieldContent('title')) ?: 'EuroCross | Translate Your Store, Grow Everywhere';
+        $ecDesc = trim($__env->yieldContent('description')) ?: 'EuroCross translates your WooCommerce store into 15 languages with SEO and VAT compliance built in.';
+    @endphp
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ $ecTitle }}</title>
+    <meta name="description" content="{{ $ecDesc }}">
+    <link rel="canonical" href="{{ url()->current() }}">
+    <meta name="theme-color" content="#7C0E44">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="EuroCross">
+    <meta property="og:title" content="{{ $ecTitle }}">
+    <meta property="og:description" content="{{ $ecDesc }}">
+    <meta property="og:image" content="{{ asset('images/og.jpg') }}">
+    <meta name="twitter:card" content="summary_large_image">
+    <link rel="icon" href="{{ asset('images/favicon.svg') }}" type="image/svg+xml">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <script type="application/ld+json">{!! json_encode([
+        '@context' => 'https://schema.org',
+        '@type' => 'SoftwareApplication',
+        'name' => 'EuroCross',
+        'description' => $ecDesc,
+        'url' => url()->current(),
+        'applicationCategory' => 'BusinessApplication',
+        'operatingSystem' => 'Web, WooCommerce',
+        'offers' => ['@type' => 'Offer', 'price' => '12', 'priceCurrency' => 'EUR'],
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
+    @fonts
+    @vite(['resources/css/app.css', 'resources/js/marketing.js'])
+    @stack('head')
+</head>
+<body class="overflow-x-hidden">
+
+<a href="#ec-main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-plum-700 focus:px-4 focus:py-2 focus:text-white">Skip to content</a>
+
+<header class="sticky top-0 z-50 border-b border-plum-900/5 bg-cream/90 backdrop-blur-xl">
+    <div class="ec-wrap flex h-18 min-h-[4.5rem] items-center justify-between gap-4">
+        <a href="{{ route('home') }}" class="flex items-center gap-2.5" aria-label="EuroCross home">
+            <span class="grid h-10 w-10 place-items-center rounded-xl bg-plum-700 text-white shadow-md shadow-plum-900/20">
+                <i class="fa-solid fa-language text-lg" aria-hidden="true"></i>
+            </span>
+            <span class="text-lg font-bold tracking-tight text-plum-900">EuroCross</span>
+        </a>
+
+        <nav class="hidden items-center gap-7 lg:flex" aria-label="Main navigation">
+            @foreach ([['home','Home'],['features','Features'],['integrations','Integrations'],['pricing','Pricing'],['about','About'],['faq','FAQ'],['contact','Contact']] as $item)
+                <a href="{{ route($item[0]) }}" class="relative py-2 text-sm font-medium text-plum-900/65 transition hover:text-rose-500 {{ request()->routeIs($item[0]) ? '!text-rose-500 after:absolute after:inset-x-0 after:-bottom-0.5 after:h-0.5 after:rounded-full after:bg-rose-500' : '' }}">{{ $item[1] }}</a>
+            @endforeach
+        </nav>
+
+        <div class="hidden items-center gap-3 lg:flex">
+            <a href="/dashboard" class="text-sm font-medium text-plum-900/65 hover:text-rose-500">Sign in</a>
+            <a href="{{ config('payment.gumroad.checkout_starter') }}" class="ec-action !min-h-10 !rounded-lg !px-5 !py-2">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
+        </div>
+
+        <button type="button" data-ec-menu-open class="grid h-10 w-10 place-items-center rounded-lg border border-plum-900/10 text-plum-900 lg:hidden" aria-label="Open menu" aria-expanded="false">
+            <i class="fa-solid fa-bars" aria-hidden="true"></i>
+        </button>
+    </div>
+</header>
+
+<div data-ec-menu class="fixed inset-0 z-[60] hidden lg:hidden" aria-hidden="true">
+    <div data-ec-menu-close class="absolute inset-0 bg-plum-950/50 backdrop-blur-sm"></div>
+    <div class="relative ml-auto h-full w-[86%] max-w-sm overflow-y-auto bg-cream p-6 shadow-2xl">
+        <div class="flex items-center justify-between">
+            <span class="text-lg font-bold text-plum-900">Menu</span>
+            <button type="button" data-ec-menu-close class="grid h-10 w-10 place-items-center rounded-lg border border-plum-900/10" aria-label="Close menu"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        </div>
+        <nav class="mt-8 grid gap-2" aria-label="Mobile navigation">
+            @foreach ([['home','Home','fa-house'],['features','Features','fa-wand-magic-sparkles'],['integrations','Integrations','fa-plug'],['pricing','Pricing','fa-tag'],['about','About','fa-circle-info'],['faq','FAQ','fa-circle-question'],['contact','Contact','fa-envelope']] as $item)
+                <a href="{{ route($item[0]) }}" class="flex items-center gap-3 rounded-xl border border-plum-900/5 bg-white px-4 py-3 text-sm font-medium text-plum-900 {{ request()->routeIs($item[0]) ? '!border-rose-200 !bg-rose-50 !text-rose-500' : '' }}">
+                    <i class="fa-solid {{ $item[2] }} w-5 text-plum-600" aria-hidden="true"></i>{{ $item[1] }}
+                </a>
+            @endforeach
+        </nav>
+        <a href="{{ config('payment.gumroad.checkout_starter') }}" class="ec-action mt-6 w-full">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
+        <a href="/dashboard" class="mt-4 block text-center text-sm font-medium text-plum-900/60">Sign in to dashboard</a>
+    </div>
+</div>
+
+<main id="ec-main">
+    @yield('content')
+</main>
+
+<footer class="bg-plum-950 text-white">
+    <div class="ec-wrap py-16">
+        <div class="grid gap-10 md:grid-cols-[1.3fr_1fr_1fr_1fr]">
+            <div>
+                <a href="{{ route('home') }}" class="flex items-center gap-2.5">
+                    <span class="grid h-10 w-10 place-items-center rounded-xl bg-rose-500 text-white"><i class="fa-solid fa-language" aria-hidden="true"></i></span>
+                    <span class="text-lg font-bold">EuroCross</span>
+                </a>
+                <p class="mt-5 max-w-xs text-sm leading-7 text-white/55">Translate your store. Reach new markets. Grow with confidence.</p>
+                <div class="mt-6 flex gap-3 text-white/50">
+                    <a href="#" class="hover:text-rose-400" aria-label="Facebook"><i class="fa-brands fa-facebook" aria-hidden="true"></i></a>
+                    <a href="#" class="hover:text-rose-400" aria-label="Twitter"><i class="fa-brands fa-twitter" aria-hidden="true"></i></a>
+                    <a href="#" class="hover:text-rose-400" aria-label="Instagram"><i class="fa-brands fa-instagram" aria-hidden="true"></i></a>
+                    <a href="#" class="hover:text-rose-400" aria-label="LinkedIn"><i class="fa-brands fa-linkedin" aria-hidden="true"></i></a>
+                </div>
+            </div>
+            <div>
+                <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-400">Explore</h2>
+                <ul class="mt-5 space-y-3 text-sm text-white/60">
+                    <li><a href="{{ route('features') }}" class="hover:text-white">Features</a></li>
+                    <li><a href="{{ route('integrations') }}" class="hover:text-white">Integrations</a></li>
+                    <li><a href="{{ route('pricing') }}" class="hover:text-white">Pricing</a></li>
+                    <li><a href="{{ route('about') }}" class="hover:text-white">About</a></li>
+                    <li><a href="{{ route('faq') }}" class="hover:text-white">FAQ</a></li>
+                </ul>
+            </div>
+            <div>
+                <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-400">Product</h2>
+                <ul class="mt-5 space-y-3 text-sm text-white/60">
+                    <li><a href="{{ route('features') }}" class="hover:text-white">Smart translation</a></li>
+                    <li><a href="{{ route('features') }}" class="hover:text-white">Multilingual SEO</a></li>
+                    <li><a href="{{ route('features') }}" class="hover:text-white">VAT &amp; OSS</a></li>
+                    <li><a href="/dashboard" class="hover:text-white">Dashboard</a></li>
+                </ul>
+            </div>
+            <div>
+                <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-400">Say hello</h2>
+                <ul class="mt-5 space-y-3 text-sm text-white/60">
+                    <li><a href="mailto:hello@eurocross-ai.kadetech.online" class="hover:text-white">hello@eurocross-ai.kadetech.online</a></li>
+                    <li><a href="{{ config('payment.gumroad.checkout_starter') }}" class="text-rose-400 hover:text-rose-300">Start free trial →</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 text-xs text-white/40 sm:flex-row sm:items-center sm:justify-between">
+            <p>© {{ date('Y') }} EuroCross. All rights reserved.</p>
+            <p><i class="fa-solid fa-globe mr-1 text-rose-400" aria-hidden="true"></i>15 languages supported</p>
+        </div>
+    </div>
+</footer>
+
+</body>
+</html>

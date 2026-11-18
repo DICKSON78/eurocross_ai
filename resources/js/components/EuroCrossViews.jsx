@@ -214,52 +214,39 @@ export function SetupScreen({ healthResource, error, onSaveKey }) {
         try {
             onSaveKey(keyInput);
             setKeyInput('');
-            setMessage('API key saved to this browser. Loading your dashboard…');
+            setMessage('API key saved. Loading your dashboard…');
         } catch (saveError) {
             setMessage(saveError.message);
         }
     };
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-ec-canvas px-4 py-10">
-            <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-ec-line/70 bg-white shadow-lg">
-                <div className="bg-ec-dark px-6 py-7 text-white sm:px-8">
-                    <p className="text-xs font-semibold uppercase tracking-widest text-white/70">EuroCross AI</p>
-                    <h1 className="mt-2 text-2xl font-semibold">Connect your account</h1>
-                    <p className="mt-2 text-sm text-white/80">
-                        This dashboard reads live data from the EuroCross API. Add an API key to continue.
-                    </p>
+        <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(125deg,#FCE4EC_0%,#FFF7FA_45%,#F3D9E5_100%)] px-4 py-10">
+            <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-ec-line/70 bg-white shadow-xl">
+                <div className="bg-ec-primary px-7 py-8 text-white sm:px-9">
+                    <div className="flex items-center gap-3">
+                        <span className="grid size-10 place-items-center rounded-xl bg-white/15 text-lg"><i className="fa-solid fa-language" aria-hidden="true"></i></span>
+                        <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/70">EuroCross</p>
+                            <h1 className="text-2xl font-semibold">Your dashboard</h1>
+                        </div>
+                    </div>
+                    <p className="mt-5 text-sm leading-7 text-white/80">Connect your account to see live translation usage, billing and compliance data.</p>
                 </div>
 
-                <div className="flex flex-col gap-5 px-6 py-7 sm:px-8">
+                <div className="flex flex-col gap-5 px-7 py-7 sm:px-9">
                     <ErrorBanner message={error} />
 
-                    <div className="rounded-lg border border-ec-line bg-ec-canvas/60 p-4">
-                        <p className="text-sm font-semibold text-ec-dark">1. Issue an API key</p>
-                        <p className="mt-1 text-xs text-ec-muted">
-                            Run this command in the Laravel project directory:
-                        </p>
+                    <div className="rounded-2xl border border-ec-line/70 bg-ec-canvas/60 p-5">
+                        <p className="text-sm font-semibold text-ec-primary">Issue an API key</p>
+                        <p className="mt-1 text-xs text-ec-muted">Run this command in your Laravel project directory:</p>
                         <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <code className="min-w-0 flex-1 overflow-x-auto rounded-md bg-white px-3 py-2 font-mono text-xs text-ec-primary ring-1 ring-ec-line/70">
+                            <code className="min-w-0 flex-1 overflow-x-auto rounded-lg bg-white px-3 py-2 font-mono text-xs text-ec-primary ring-1 ring-ec-line/70">
                                 {ISSUE_KEY_COMMAND}
                             </code>
-                            <button type="button" className={secondaryButtonClass} onClick={() => copyCommand(setCopyMessage)}>
-                                Copy
-                            </button>
+                            <button type="button" className={secondaryButtonClass} onClick={() => copyCommand(setCopyMessage)}>Copy</button>
                         </div>
-                        {copyMessage && (
-                            <p role="status" aria-live="polite" className="mt-2 text-xs text-ec-muted">
-                                {copyMessage}
-                            </p>
-                        )}
-                    </div>
-
-                    <div>
-                        <p className="text-sm font-semibold text-ec-dark">2. Save the key</p>
-                        <p className="mt-1 text-xs text-ec-muted">
-                            For local development you may instead set <code className="font-mono">VITE_EUROCROSS_API_KEY</code> in your
-                            environment. The key stays in this browser and is sent only to this site.
-                        </p>
+                        {copyMessage && <p role="status" aria-live="polite" className="mt-2 text-xs text-ec-muted">{copyMessage}</p>}
                     </div>
 
                     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -274,41 +261,18 @@ export function SetupScreen({ healthResource, error, onSaveKey }) {
                                 onChange={(event) => setKeyInput(event.target.value)}
                             />
                         </Field>
-                        <button type="submit" className={primaryButtonClass}>
-                            Save key and continue
-                        </button>
-                        {message && (
-                            <p role="status" aria-live="polite" className="text-sm text-ec-muted">
-                                {message}
-                            </p>
-                        )}
+                        <button type="submit" className={primaryButtonClass}>Save key and continue</button>
+                        {message && <p role="status" aria-live="polite" className="text-sm text-ec-muted">{message}</p>}
                     </form>
 
                     <div className="flex flex-wrap items-center gap-2 border-t border-ec-line/60 pt-4 text-xs text-ec-muted">
                         <span>API status:</span>
                         <span className="font-semibold text-ec-primary">{health.status ?? 'checking…'}</span>
                         {health.version && <span>v{String(health.version)}</span>}
-                        {health.demo_mode === true && (
-                            <span className="rounded-full bg-ec-accent/10 px-2 py-0.5 font-semibold text-ec-accent">Demo mode</span>
-                        )}
+                        <span className="ml-auto"><a href="/" className="hover:text-ec-primary">Back to site</a></span>
                     </div>
                 </div>
             </div>
-        </div>
-    );
-}
-
-function OverviewSkeleton() {
-    return (
-        <div className="flex flex-col gap-6" aria-busy="true">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {['Monthly recurring revenue', 'Active accounts', 'Translations this month', 'Tokens used', 'Monthly profit', 'Words remaining'].map(
-                    (label) => (
-                        <StatCard key={label} label={label} value={EMPTY_VALUE} />
-                    ),
-                )}
-            </div>
-            <LoadingState label="Loading account summary…" />
         </div>
     );
 }

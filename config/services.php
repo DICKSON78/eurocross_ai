@@ -66,6 +66,22 @@ return [
         'cost_per_million_characters' => env('DEEPL_COST_PER_MILLION_CHARACTERS', 25.00),
     ],
 
+    'firebase' => [
+        'api_key' => env('FIREBASE_API_KEY'),
+        'auth_domain' => env('FIREBASE_AUTH_DOMAIN'),
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'storage_bucket' => env('FIREBASE_STORAGE_BUCKET'),
+        'messaging_sender_id' => env('FIREBASE_MESSAGING_SENDER_ID'),
+        'app_id' => env('FIREBASE_APP_ID'),
+        'measurement_id' => env('FIREBASE_MEASUREMENT_ID'),
+    ],
+
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
+        'redirect' => env('GOOGLE_REDIRECT_URI'),
+    ],
+
     'geoip' => [
         'url' => env('GEOIP_URL', 'https://ipapi.co/{ip}/json/'),
         'default_country' => env('GEOIP_DEFAULT_COUNTRY', 'TZ'),

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
@@ -15,6 +16,7 @@ class EuroCrossSettings extends Model
     protected $table = 'eurocross_settings';
 
     protected $fillable = [
+        'user_id',
         'api_key',
         'locale',
         'plan',
@@ -27,8 +29,11 @@ class EuroCrossSettings extends Model
         'monthly_profit',
         'subscription_provider',
         'subscription_id',
+        'gumroad_sale_id',
         'subscription_status',
         'subscription_current_period_end',
+        'next_billing_date',
+        'words_reset_at',
         'customer_id',
         'billing_email',
     ];
@@ -36,6 +41,11 @@ class EuroCrossSettings extends Model
     protected $hidden = [
         'api_key',
     ];
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
 
     protected $casts = [
         'trial' => 'boolean',
@@ -46,6 +56,8 @@ class EuroCrossSettings extends Model
         'monthly_recurring_revenue' => 'decimal:2',
         'monthly_profit' => 'decimal:2',
         'subscription_current_period_end' => 'datetime',
+        'next_billing_date' => 'datetime',
+        'words_reset_at' => 'datetime',
     ];
 
     public function apiKeys(): HasMany
@@ -106,8 +118,24 @@ class EuroCrossSettings extends Model
 
     public function hasActiveSubscription(): bool
     {
-        return in_array($this->subscription_status, ['active', 'trialing'], true)
-            && ! empty($this->subscription_id);
+        if (empty($this->subscription_id)) {
+            return false;
+        }
+
+        $periodEnd = $this->subscription_current_period_end;
+
+        if ($periodEnd instanceof Carbon && now()->greaterThan($periodEnd)) {
+            return false;
+        }
+
+        if (in_array($this->subscription_status, ['active', 'trialing'], true)) {
+            return true;
+        }
+
+        // Cancelled subscriptions keep access until the end of the paid period.
+        return $this->subscription_status === 'canceled'
+            && $periodEnd instanceof Carbon
+            && now()->lessThanOrEqualTo($periodEnd);
     }
 
     public function gracePeriodEndsAt(): ?Carbon
@@ -125,7 +153,17 @@ class EuroCrossSettings extends Model
 
     public function isInGracePeriod(): bool
     {
-        if ($this->hasActiveSubscription() || ! $this->trial_expires instanceof Carbon) {
+        if ($this->hasActiveSubscription()) {
+            return false;
+        }
+
+        if ($this->subscription_status === 'past_due'
+            && $this->grace_expires instanceof Carbon
+            && now()->lessThanOrEqualTo($this->grace_expires)) {
+            return true;
+        }
+
+        if (! $this->trial_expires instanceof Carbon) {
             return false;
         }
 
