@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Integrations | EuroCross')
-@section('description', 'EuroCross works with WooCommerce, WordPress, Shopify, Webflow and more. Connect once and translate everywhere your store lives.')
+@section('description', 'EuroCross integrates with WordPress and WooCommerce. Connect your store and translate product titles and descriptions with a server-side API.')
 
 @section('content')
 
@@ -10,9 +10,9 @@
     <div class="ec-wrap relative grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
         <div>
             <span class="ec-kicker"><span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span> Integrations</span>
-            <h1 class="ec-display mt-6 text-4xl sm:text-5xl">Fits the tools<br><span class="text-rose-500">you already use.</span></h1>
-            <p class="ec-lead mt-5 max-w-xl">Connect once and translate everywhere your store lives. EuroCross works alongside your setup — no rebuilding required.</p>
-            <a href="#ec-platforms" class="ec-action-light mt-8">Explore platforms <i class="fa-solid fa-arrow-down text-xs" aria-hidden="true"></i></a>
+            <h1 class="ec-display mt-6 text-4xl sm:text-5xl">One integration,<br><span class="text-rose-500">built for WooCommerce.</span></h1>
+            <p class="ec-lead mt-5 max-w-xl">EuroCross is a WooCommerce multilingual plugin. It connects to your WordPress store, translates catalog copy and adds a language switcher — no rebuilding required.</p>
+            <a href="#ec-platforms" class="ec-action-light mt-8">See supported platforms <i class="fa-solid fa-arrow-down text-xs" aria-hidden="true"></i></a>
         </div>
         <div class="rounded-3xl border border-plum-900/6 bg-white/75 p-6 shadow-lift backdrop-blur-sm">
             <img src="{{ asset('images/illustrations/apps.svg') }}" alt="Integrations illustration" class="mx-auto w-full max-w-sm object-contain">
@@ -23,13 +23,12 @@
 <section id="ec-platforms" class="ec-wrap py-20">
     <div class="max-w-xl">
         <span class="text-xs font-semibold uppercase tracking-[0.2em] text-rose-500">Platforms</span>
-        <h2 class="ec-display mt-4 text-3xl">Works where your store lives.</h2>
-        <p class="ec-lead mt-3">From WooCommerce to custom builds, EuroCross connects through one simple integration.</p>
+        <h2 class="ec-display mt-4 text-3xl">Supported today.</h2>
+        <p class="ec-lead mt-3">We focus on the WordPress + WooCommerce stack so the translation workflow stays reliable and predictable.</p>
     </div>
     <div class="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         @foreach ([
-            ['WooCommerce','fa-cart-shopping'],["WordPress","fa-puzzle-piece"],['Shopify','fa-bag-shopping'],['Webflow','fa-layer-group'],
-            ['BigCommerce','fa-store'],['Squarespace','fa-square'],['Wix','fa-globe'],['Custom Code','fa-code'],
+            ['WooCommerce','fa-cart-shopping'],['WordPress','fa-puzzle-piece'],
         ] as $platform)
         <div class="ec-tile group text-center !p-6">
             <span class="mx-auto grid h-12 w-12 place-items-center rounded-xl bg-rose-50 text-rose-500 transition group-hover:bg-rose-500 group-hover:text-white"><i class="fa-solid {{ $platform[1] }} text-lg" aria-hidden="true"></i></span>

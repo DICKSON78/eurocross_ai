@@ -57,7 +57,7 @@
                     <li class="flex items-center gap-2"><i class="fa-solid fa-check text-rose-500" aria-hidden="true"></i>{{ number_format((int) ($features['words'] ?? 0)) }} words / month</li>
                     <li class="flex items-center gap-2"><i class="fa-solid fa-check text-rose-500" aria-hidden="true"></i>{{ (int) ($features['languages'] ?? 0) }} languages</li>
                     <li class="flex items-center gap-2"><i class="fa-solid fa-check text-rose-500" aria-hidden="true"></i>{{ (int) ($settings['rate_limit'] ?? 0) }} requests / min</li>
-                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-rose-500" aria-hidden="true"></i>{{ ($features['vat'] ?? '') === 'full' ? 'Full OSS + VIES' : 'Basic VAT' }}</li>
+                    <li class="flex items-center gap-2"><i class="fa-solid fa-check text-rose-500" aria-hidden="true"></i>{{ ($features['vat'] ?? '') === 'full' ? 'Optional VAT + VIES tools' : 'Basic VAT tools' }}</li>
                     <li class="flex items-center gap-2"><i class="fa-solid {{ ($features['chatbot'] ?? false) ? 'fa-check text-rose-500' : 'fa-minus text-plum-900/30' }}" aria-hidden="true"></i>{{ ($features['chatbot'] ?? false) ? 'Chatbot included' : 'No chatbot' }}</li>
                     <li class="flex items-center gap-2"><i class="fa-solid fa-check text-rose-500" aria-hidden="true"></i>7-day free trial</li>
                 </ul>
@@ -89,7 +89,7 @@
             ['Words per month','50,000','100,000','300,000'],
             ['Languages','3','5','15'],
             ['Rate limit','60/min','300/min','1,000/min'],
-            ['VAT & OSS','Basic','Full','Full'],
+            ['Optional VAT tools','Basic','VIES + OSS notes','VIES + OSS notes'],
             ['Chatbot','—','Included','Included'],
             ['Free trial','7 days','7 days','7 days'],
         ] as $row)

@@ -84,10 +84,6 @@ class EuroCrossRateLimit
             $token = $request->bearerToken();
         }
 
-        if (! $token) {
-            $token = $request->query('api_key');
-        }
-
         return is_string($token) && $token !== '' ? $token : null;
     }
 

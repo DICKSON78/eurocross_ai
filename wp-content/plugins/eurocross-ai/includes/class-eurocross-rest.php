@@ -10,9 +10,11 @@ if (! defined('ABSPATH')) {
 /**
  * Registers the eurocross/v1 REST routes.
  *
- * Browser routes verify the WordPress REST nonce. The SaaS-to-site plan sync
- * route verifies a shared secret issued during the secure connect flow. All
- * calls to the Laravel SaaS API are performed here, on the server.
+ * Browser routes verify the WordPress REST nonce and are rate limited. AI
+ * routes also require an administrator or the explicit public-AI setting. The
+ * SaaS-to-site plan sync route verifies a shared secret issued during the
+ * secure connect flow. All calls to the Laravel SaaS API are performed here,
+ * on the server.
  */
 class EuroCross_AI_REST
 {
@@ -42,12 +44,12 @@ class EuroCross_AI_REST
             '/languages' => [
                 'methods' => 'GET',
                 'callback' => [$this, 'get_languages'],
-                'permission_callback' => [$this, 'verify_nonce'],
+                'permission_callback' => [$this, 'can_read_languages'],
             ],
             '/translate' => [
                 'methods' => 'POST',
                 'callback' => [$this, 'translate'],
-                'permission_callback' => [$this, 'verify_nonce'],
+                'permission_callback' => [$this, 'can_translate'],
                 'args' => [
                     'text' => [
                         'required' => true,
@@ -77,7 +79,7 @@ class EuroCross_AI_REST
             '/chat' => [
                 'methods' => 'POST',
                 'callback' => [$this, 'chat'],
-                'permission_callback' => [$this, 'verify_nonce'],
+                'permission_callback' => [$this, 'can_chat'],
                 'args' => [
                     'message' => ['required' => true],
                     'language' => ['required' => false],
@@ -87,7 +89,7 @@ class EuroCross_AI_REST
             '/vat/check' => [
                 'methods' => 'POST',
                 'callback' => [$this, 'check_vat'],
-                'permission_callback' => [$this, 'verify_nonce'],
+                'permission_callback' => [$this, 'can_check_vat'],
                 'args' => [
                     'customer_country' => ['required' => false],
                     'merchant_country' => ['required' => false],
@@ -98,7 +100,7 @@ class EuroCross_AI_REST
             '/vat/validate-vies' => [
                 'methods' => 'POST',
                 'callback' => [$this, 'validate_vies'],
-                'permission_callback' => [$this, 'verify_nonce'],
+                'permission_callback' => [$this, 'can_validate_vies'],
                 'args' => [
                     'vat_number' => ['required' => true],
                 ],
@@ -157,7 +159,111 @@ class EuroCross_AI_REST
     }
 
     /**
-     * Locale changes are restricted to users who can edit content.
+     * Language lookups are public but bounded to prevent abuse.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return true|WP_Error
+     */
+    public function can_read_languages($request)
+    {
+        $nonce_check = $this->verify_nonce($request);
+        if (is_wp_error($nonce_check)) {
+            return $nonce_check;
+        }
+
+        return $this->enforce_rate_limit($request, 'languages', 60, MINUTE_IN_SECONDS);
+    }
+
+    /**
+     * Translation consumes quota, so visitors need an explicit site opt-in.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return true|WP_Error
+     */
+    public function can_translate($request)
+    {
+        $nonce_check = $this->verify_nonce($request);
+        if (is_wp_error($nonce_check)) {
+            return $nonce_check;
+        }
+
+        if (! current_user_can('manage_options') && ! eurocross_ai_is_enabled('eurocross_allow_public_ai')) {
+            return new WP_Error(
+                'eurocross_public_ai_disabled',
+                __('Public AI requests are disabled on this site.', 'eurocross-ai'),
+                ['status' => 403]
+            );
+        }
+
+        return $this->enforce_rate_limit($request, 'translation', 12, MINUTE_IN_SECONDS);
+    }
+
+    /**
+     * Chatbot requests are gated by both the chatbot and public-AI settings.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return true|WP_Error
+     */
+    public function can_chat($request)
+    {
+        $nonce_check = $this->verify_nonce($request);
+        if (is_wp_error($nonce_check)) {
+            return $nonce_check;
+        }
+
+        if (! eurocross_ai_is_enabled('eurocross_chatbot_enabled')) {
+            return new WP_Error(
+                'eurocross_chatbot_disabled',
+                __('The chatbot is not enabled on this site.', 'eurocross-ai'),
+                ['status' => 403]
+            );
+        }
+
+        if (! current_user_can('manage_options') && ! eurocross_ai_is_enabled('eurocross_allow_public_ai')) {
+            return new WP_Error(
+                'eurocross_public_ai_disabled',
+                __('Public AI requests are disabled on this site.', 'eurocross-ai'),
+                ['status' => 403]
+            );
+        }
+
+        return $this->enforce_rate_limit($request, 'chat', 10, MINUTE_IN_SECONDS);
+    }
+
+    /**
+     * VAT lookups remain available at checkout but are rate limited.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return true|WP_Error
+     */
+    public function can_check_vat($request)
+    {
+        $nonce_check = $this->verify_nonce($request);
+        if (is_wp_error($nonce_check)) {
+            return $nonce_check;
+        }
+
+        return $this->enforce_rate_limit($request, 'vat_check', 30, MINUTE_IN_SECONDS);
+    }
+
+    /**
+     * VIES validation remains available at checkout but is rate limited.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return true|WP_Error
+     */
+    public function can_validate_vies($request)
+    {
+        $nonce_check = $this->verify_nonce($request);
+        if (is_wp_error($nonce_check)) {
+            return $nonce_check;
+        }
+
+        return $this->enforce_rate_limit($request, 'vies', 20, MINUTE_IN_SECONDS);
+    }
+
+    /**
+     * Locale changes update the site-wide default, so only administrators may use them.
      *
      * @param  WP_REST_Request  $request  Request object.
      * @return true|WP_Error
@@ -169,7 +275,7 @@ class EuroCross_AI_REST
             return $nonce_check;
         }
 
-        if (! current_user_can('edit_posts')) {
+        if (! current_user_can('manage_options')) {
             return new WP_Error(
                 'eurocross_rest_forbidden',
                 __('You are not allowed to change the site locale.', 'eurocross-ai'),
@@ -178,6 +284,51 @@ class EuroCross_AI_REST
         }
 
         return true;
+    }
+
+    /**
+     * Apply a simple fixed-window rate limit per user or IP address.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @param  string  $bucket  Rate-limit bucket name.
+     * @param  int  $limit  Maximum requests in the window.
+     * @param  int  $window  Window length in seconds.
+     * @return true|WP_Error
+     */
+    private function enforce_rate_limit($request, $bucket, $limit, $window)
+    {
+        $key = 'eurocross_rl_'.md5($bucket.'|'.$this->rate_limit_identity($request));
+        $count = (int) get_transient($key);
+
+        if ($count >= $limit) {
+            return new WP_Error(
+                'eurocross_rate_limited',
+                __('Too many requests. Please try again shortly.', 'eurocross-ai'),
+                ['status' => 429]
+            );
+        }
+
+        set_transient($key, $count + 1, $window);
+
+        return true;
+    }
+
+    /**
+     * Build a non-reversible rate-limit identity without logging raw IP addresses.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return string
+     */
+    private function rate_limit_identity($request)
+    {
+        $user_id = get_current_user_id();
+        if ($user_id > 0) {
+            return 'user:'.$user_id;
+        }
+
+        $remote_address = isset($_SERVER['REMOTE_ADDR']) ? (string) wp_unslash($_SERVER['REMOTE_ADDR']) : '';
+
+        return $remote_address === '' ? 'unknown' : 'ip:'.md5($remote_address);
     }
 
     /**

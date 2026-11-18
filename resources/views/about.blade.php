@@ -23,11 +23,11 @@
     <div class="mx-auto max-w-2xl">
         <span class="text-xs font-semibold uppercase tracking-[0.2em] text-rose-500">Our story</span>
         <h2 class="ec-display mt-4 text-3xl">Built for ambitious store owners.</h2>
-        <p class="mt-6 text-base leading-8 text-plum-900/70">EuroCross helps WooCommerce store owners reach European customers by translating their stores into ten languages — with SEO, VAT compliance and analytics built right in.</p>
-        <p class="mt-5 text-base leading-8 text-plum-900/55">Our mission is to make international expansion simple. Connect your store, choose your languages, and let EuroCross handle the rest.</p>
+        <p class="mt-6 text-base leading-8 text-plum-900/70">EuroCross helps WooCommerce store owners reach European customers by translating product titles and descriptions into up to 15 languages, with a responsive switcher and cached, server-side delivery.</p>
+        <p class="mt-5 text-base leading-8 text-plum-900/55">Our mission is to make multilingual selling simple: connect your store, choose your languages, and keep your catalog readable in every market.</p>
     </div>
     <div class="mt-14 grid gap-5 sm:grid-cols-3">
-        @foreach ([['10','Languages supported'],['28','EU VAT rates'],['4 min','Average setup']] as $stat)
+        @foreach ([['15','Languages supported'],['7 days','Free trial'],['3','Simple plans']] as $stat)
             <div class="ec-tile text-center"><div class="ec-stat-value">{{ $stat[0] }}</div><p class="mt-1 text-sm text-plum-900/50">{{ $stat[1] }}</p></div>
         @endforeach
     </div>
@@ -51,8 +51,8 @@
         <div class="mt-10 grid gap-5 md:grid-cols-3">
             @foreach ([
                 ['fa-globe','Language is access','Customers buy in their own language. We make that possible without extra work.'],
-                ['fa-compass','Search is opportunity','Translated metadata helps your store get found in every market.'],
-                ['fa-shield-halved','Compliance is trust','Getting VAT right means selling with confidence across Europe.'],
+                ['fa-bolt','Speed matters','Cached translations and server-side requests keep the storefront responsive.'],
+                ['fa-lock','Clarity is trust','Clear plan limits, transparent pricing and careful credential handling.'],
             ] as $item)
                 <article class="ec-tile">
                     <span class="grid h-11 w-11 place-items-center rounded-xl bg-rose-50 text-rose-500"><i class="fa-solid {{ $item[0] }}" aria-hidden="true"></i></span>
@@ -70,7 +70,7 @@
         <div>
             <span class="text-xs font-semibold uppercase tracking-[0.2em] text-rose-500">Our approach</span>
             <h2 class="ec-display mt-4 text-3xl">Practical tools, not complexity.</h2>
-            <p class="ec-lead mt-3">We focus on what actually helps a store go international: accurate translation, search visibility, and compliance that stays out of the way.</p>
+            <p class="ec-lead mt-3">We focus on what actually helps a store go international: accurate product translation, simple language management and reliable performance.</p>
             <ul class="mt-6 space-y-3 text-sm text-plum-900/60">
                 @foreach (['Clear setup with no technical work','Transparent, predictable pricing','Features that grow with your store'] as $item)
                     <li class="flex items-center gap-2"><i class="fa-solid fa-check text-rose-500" aria-hidden="true"></i>{{ $item }}</li>

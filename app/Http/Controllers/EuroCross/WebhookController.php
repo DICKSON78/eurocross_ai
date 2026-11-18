@@ -57,11 +57,21 @@ class WebhookController extends Controller
             'product_permalink' => (string) ($payload['product_permalink'] ?? ''),
         ]);
 
-        if (EuroCrossWebhook::where('provider', 'gumroad')->where('event_id', $eventId)->exists()) {
+        $record = EuroCrossWebhook::firstOrCreate(
+            ['provider' => 'gumroad', 'event_id' => $eventId],
+            [
+                'event' => $eventType,
+                'payload' => $payload,
+                'signature' => (string) $request->header('X-Gumroad-Signature', ''),
+                'processed' => false,
+            ],
+        );
+
+        if (! $record->wasRecentlyCreated) {
             return response()->json(['success' => true, 'status' => 'duplicate']);
         }
 
-        ProcessGumroadWebhook::dispatch($payload, $eventId, $eventType);
+        ProcessGumroadWebhook::dispatch($payload, $eventId, $eventType, $record->id);
 
         return response()->json(['success' => true]);
     }
@@ -81,9 +91,9 @@ class WebhookController extends Controller
             return response()->json(['error' => 'Invalid payload'], 400);
         }
 
-        $eventId = (string) (data_get($decoded, 'data.id')
-            ?? data_get($decoded, 'meta.event_id')
+        $eventId = (string) (data_get($decoded, 'meta.event_id')
             ?? data_get($decoded, 'id')
+            ?? data_get($decoded, 'data.id')
             ?? hash('sha256', $payload));
 
         $eventType = (string) (data_get($decoded, 'data.type')
@@ -95,17 +105,17 @@ class WebhookController extends Controller
         $metadata = data_get($attributes, 'meta.custom_data', data_get($attributes, 'custom_data', data_get($decoded, 'meta.custom_data', [])));
         $shopId = $this->resolveShopId($metadata, data_get($decoded, 'meta.custom_data', []));
 
-        $record = $this->recordWebhook('lemon_squeezy', $eventId, $eventType, $decoded, $shopId);
+        $record = $this->recordWebhook('lemon_squeezy', $eventId, $eventType, $decoded, $shopId, $signature);
 
         if ($record === null) {
             return response()->json(['success' => true, 'status' => 'duplicate'], 200);
         }
 
         try {
-            $this->handleLemonSqueezy($eventType, $attributes, $metadata, $shopId, $record);
-            $record->forceFill(['status' => 'processed', 'error' => null])->save();
+            $this->handleLemonSqueezy($eventType, $attributes, $metadata, $shopId, $record, $eventId, $decoded);
+            $record->markProcessed();
         } catch (Throwable $exception) {
-            $record->forceFill(['status' => 'failed', 'error' => $exception->getMessage()])->save();
+            $record->markFailed($exception->getMessage());
 
             return response()->json(['error' => 'Webhook processing failed'], 500);
         }
@@ -134,17 +144,17 @@ class WebhookController extends Controller
         $metadata = is_array($object) ? data_get($object, 'metadata', []) : [];
         $shopId = $this->resolveShopId($metadata, []);
 
-        $record = $this->recordWebhook('stripe', $eventId, $eventType, $decoded, $shopId);
+        $record = $this->recordWebhook('stripe', $eventId, $eventType, $decoded, $shopId, $signature);
 
         if ($record === null) {
             return response()->json(['success' => true, 'status' => 'duplicate'], 200);
         }
 
         try {
-            $this->handleStripe($eventType, $object, $metadata, $shopId, $record);
-            $record->forceFill(['status' => 'processed', 'error' => null])->save();
+            $this->handleStripe($eventType, $object, $metadata, $shopId, $record, $eventId, $decoded);
+            $record->markProcessed();
         } catch (Throwable $exception) {
-            $record->forceFill(['status' => 'failed', 'error' => $exception->getMessage()])->save();
+            $record->markFailed($exception->getMessage());
 
             return response()->json(['error' => 'Webhook processing failed'], 500);
         }
@@ -153,20 +163,26 @@ class WebhookController extends Controller
     }
 
     /** @param array<string, mixed> $decoded */
-    private function recordWebhook(string $provider, string $eventId, string $eventType, array $decoded, ?int $shopId): ?EuroCrossWebhook
-    {
-        if (EuroCrossWebhook::where('provider', $provider)->where('event_id', $eventId)->exists()) {
-            return null;
-        }
+    private function recordWebhook(
+        string $provider,
+        string $eventId,
+        string $eventType,
+        array $decoded,
+        ?int $shopId,
+        string $signature,
+    ): ?EuroCrossWebhook {
+        $record = EuroCrossWebhook::firstOrCreate(
+            ['provider' => $provider, 'event_id' => $eventId],
+            [
+                'event' => $eventType,
+                'shop_id' => $shopId,
+                'payload' => $decoded,
+                'signature' => $signature,
+                'processed' => false,
+            ],
+        );
 
-        return EuroCrossWebhook::create([
-            'provider' => $provider,
-            'event_id' => $eventId,
-            'event_type' => $eventType,
-            'shop_id' => $shopId,
-            'payload' => $decoded,
-            'status' => 'received',
-        ]);
+        return $record->wasRecentlyCreated ? $record : null;
     }
 
     /** @param array<string, mixed> $metadata */
@@ -183,13 +199,18 @@ class WebhookController extends Controller
         return $shopId > 0 ? $shopId : null;
     }
 
-    /** @param array<string, mixed> $attributes */
+    /**
+     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>  $decoded
+     */
     private function handleLemonSqueezy(
         string $eventType,
         array $attributes,
         array $metadata,
         ?int $shopId,
         EuroCrossWebhook $record,
+        string $eventId,
+        array $decoded,
     ): void {
         $settings = $shopId !== null ? EuroCrossSettings::find($shopId) : null;
 
@@ -249,13 +270,18 @@ class WebhookController extends Controller
         }
     }
 
-    /** @param array<string, mixed>|null $object */
+    /**
+     * @param  array<string, mixed>|null  $object
+     * @param  array<string, mixed>  $decoded
+     */
     private function handleStripe(
         string $eventType,
         mixed $object,
         array $metadata,
         ?int $shopId,
         EuroCrossWebhook $record,
+        string $eventId,
+        array $decoded,
     ): void {
         $settings = $shopId !== null ? EuroCrossSettings::find($shopId) : null;
 

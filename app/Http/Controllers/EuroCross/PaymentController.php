@@ -195,7 +195,6 @@ class PaymentController extends Controller
 
         $settings->forceFill([
             'subscription_status' => 'canceled',
-            'subscription_current_period_end' => null,
         ])->save();
 
         $this->audit($settings, 'subscription_canceled', [

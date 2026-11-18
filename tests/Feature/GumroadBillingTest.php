@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\ProcessGumroadWebhook;
+use App\Models\EuroCrossApiKey;
 use App\Models\EuroCrossSettings;
 use App\Models\EuroCrossWebhook;
 use App\Models\User;
@@ -72,6 +73,41 @@ class GumroadBillingTest extends TestCase
         $this->signedPost($this->payload())->assertOk()->assertJson(['success' => true]);
 
         Queue::assertPushed(ProcessGumroadWebhook::class);
+    }
+
+    public function test_valid_signed_webhook_persists_record_before_dispatch(): void
+    {
+        Queue::fake();
+        $payload = $this->payload();
+        $signature = hash_hmac('sha256', (string) json_encode($payload), 'test-secret');
+
+        $this->signedPost($payload)->assertOk()->assertJson(['success' => true]);
+
+        $record = EuroCrossWebhook::query()->where('provider', 'gumroad')->firstOrFail();
+        $this->assertSame('sale', $record->event);
+        $this->assertSame(md5('gumroad|sale|SALE-1|SUB-1|'), $record->event_id);
+        $this->assertSame($payload, $record->payload);
+        $this->assertSame($signature, $record->signature);
+        $this->assertFalse($record->processed);
+
+        Queue::assertPushed(ProcessGumroadWebhook::class, fn (ProcessGumroadWebhook $job): bool => $job->webhookRecordId === $record->id);
+    }
+
+    public function test_query_string_secret_is_rejected(): void
+    {
+        $raw = json_encode($this->payload());
+
+        $this->call(
+            'POST',
+            '/eurocross/webhook/gumroad?secret=test-secret',
+            [],
+            [],
+            [],
+            ['CONTENT_TYPE' => 'application/json'],
+            (string) $raw,
+        )->assertForbidden();
+
+        $this->assertDatabaseEmpty('eurocross_webhooks');
     }
 
     public function test_wrong_signature_is_rejected(): void
@@ -189,6 +225,30 @@ class GumroadBillingTest extends TestCase
         $fresh = $settings->fresh();
         $this->assertSame('canceled', $fresh->subscription_status);
         $this->assertTrue($fresh->hasActiveAccess());
+    }
+
+    public function test_manual_cancellation_preserves_paid_through_period_end(): void
+    {
+        config()->set('payment.gumroad.access_token', 'test-gumroad-token');
+        $periodEnd = now()->addDays(10);
+        $settings = EuroCrossSettings::factory()->activeSubscription()->create([
+            'subscription_provider' => 'gumroad',
+            'subscription_current_period_end' => $periodEnd,
+        ]);
+        EuroCrossApiKey::factory()
+            ->for($settings, 'shop')
+            ->accessToken('ecx_live_cancel_token')
+            ->create();
+        Http::fake(['api.gumroad.com/*' => Http::response(['success' => true])]);
+
+        $this->withHeaders(['X-API-Key' => 'ecx_live_cancel_token'])
+            ->postJson('/eurocross/subscription/cancel')
+            ->assertOk()
+            ->assertJsonPath('success', true);
+
+        $fresh = $settings->fresh();
+        $this->assertSame('canceled', $fresh->subscription_status);
+        $this->assertSame($periodEnd->toDateTimeString(), $fresh->subscription_current_period_end->toDateTimeString());
     }
 
     public function test_refund_suspends_access(): void

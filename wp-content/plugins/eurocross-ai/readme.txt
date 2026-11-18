@@ -5,29 +5,30 @@ Tags: translation, woocommerce, multilingual, vat, chatbot
 Requires at least: 6.2
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.1.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
+AI translation and language switching for WooCommerce, with optional VAT and chatbot tools, powered by the EuroCross AI SaaS API.
 
 == Description ==
 
-EuroCross AI connects your WooCommerce store to your EuroCross AI SaaS account. Translation, VAT and chatbot requests are made from the server to the Laravel API, and the results are rendered in your store and admin dashboard. No translation data or pricing figures are invented in the browser.
+EuroCross AI connects your WooCommerce store to your EuroCross AI SaaS account. Translation requests are made from the server to the Laravel API, and the results are rendered in your store. Optional VAT and chatbot modules are also available. No translation data or pricing figures are invented in the browser.
 
 = Features =
 
 * **AI translation** — translate product titles and descriptions through the SaaS API, with local transients that cache results and preserve the original text if the API is unavailable.
 * **Language switcher** — a widget and the `[eurocross_language_switcher]` shortcode render the languages actually returned by the API. Visitors can persist their choice in a cookie or local storage.
-* **Chatbot** — the `[eurocross_chatbot]` shortcode posts messages to the REST chat endpoint, which calls the SaaS API server-side.
-* **VAT and OSS** — add a VAT number field to checkout, validate numbers through VIES, request the VAT treatment from the API and display reverse-charge or OSS notes.
+* **Chatbot (optional)** — the `[eurocross_chatbot]` shortcode posts messages to the REST chat endpoint, which calls the SaaS API server-side. Both the chatbot and public AI requests must be enabled.
+* **VAT and OSS (optional)** — add a VAT number field to checkout, validate numbers through VIES, request VAT treatment information from the API and display reverse-charge or OSS notes. This is informational only and is not tax or legal advice.
 * **Order emails** — translate order email subjects and content for recipients with a different active locale.
 * **Dashboard** — the admin dashboard displays live status, language count and chatbot information fetched from the API.
+* **Security controls** — public REST routes are rate limited, public AI requests are disabled by default, and only administrators can change the site-wide default language.
 * **Developer friendly** — REST routes under `eurocross/v1`, translatable strings and a debug log mode with redacted API calls.
 
 = External service dependency =
 
-This plugin requires an active EuroCross AI SaaS account. Use **Connect with EuroCross** in the settings to link this site securely and receive an API key automatically. The plugin sends text submitted for translation, VAT numbers and chat messages to the API URL configured in the settings (default: `https://eurocross-ai.kadetech.online`). The API key and site secret are stored on the server and are never exposed to JavaScript or to site visitors.
+This plugin requires an active EuroCross AI SaaS account. Use **Connect with EuroCross** in the settings to link this site securely and receive an API key automatically. The plugin sends text submitted for translation, VAT numbers and chat messages to the API URL configured in the settings (default: `https://eurocross-ai.kadetech.online`). The API key and site secret are stored on the server; the API key appears only in the admin settings field and is never sent by frontend JavaScript or exposed to site visitors.
 
 = Privacy =
 
@@ -62,11 +63,11 @@ The switcher calls the SaaS languages endpoint and caches the plan-limited respo
 
 = How do I display the chatbot? =
 
-Enable the chatbot option, then add `[eurocross_chatbot]` to a page. The widget posts to the `eurocross/v1/chat` REST route with the WordPress REST nonce.
+Enable the chatbot option and the **Allow public AI requests** option, then add `[eurocross_chatbot]` to a page. The widget posts to the `eurocross/v1/chat` REST route with the WordPress REST nonce. Administrators can use the endpoint without enabling public AI requests.
 
 = What happens during checkout? =
 
-When a customer enters a VAT number, the plugin validates it through the VIES endpoint and requests the VAT treatment from the API. The returned rate, reason and reverse-charge status are displayed in the order review.
+When a customer enters a VAT number and the optional VAT module is enabled, the plugin validates it through the VIES endpoint and requests VAT treatment information from the API. The returned rate, reason and reverse-charge status are displayed in the order review. Confirm the final tax treatment with your tax adviser; the plugin does not provide legal or tax compliance guarantees.
 
 = Is any data stored externally? =
 
@@ -83,6 +84,12 @@ Uninstalling the plugin deletes its options, transients, cached translations, us
 3. A WooCommerce storefront with the language switcher and VAT checkout field.
 
 == Changelog ==
+
+= 1.1.1 =
+* Public AI requests are now disabled by default; enable the setting only for intentionally public translation/chatbot shortcodes.
+* Public REST routes are rate limited per administrator or visitor IP address.
+* Only administrators can change the site-wide default language.
+* Clarified that VAT/VIES tools are informational and not a compliance guarantee.
 
 = 1.1.0 =
 * Secure connect flow: the plugin generates a state value, the user approves in the SaaS dashboard, and a one-time code is exchanged server-to-server for an API key and site secret.

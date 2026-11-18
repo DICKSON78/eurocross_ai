@@ -6,8 +6,8 @@
             ['label' => 'Overview', 'icon' => 'fa-gauge-high', 'route' => route('dashboard'), 'id' => 'overview'],
             ['label' => 'Translation', 'icon' => 'fa-language', 'route' => route('dashboard.module','translation'), 'id' => 'translation'],
         ]],
-        ['label' => 'Business', 'items' => [
-            ['label' => 'VAT & Compliance', 'icon' => 'fa-file-invoice', 'route' => route('dashboard.module','vat'), 'id' => 'vat'],
+        ['label' => 'Billing & tools', 'items' => [
+            ['label' => 'VAT tools', 'icon' => 'fa-file-invoice', 'route' => route('dashboard.module','vat'), 'id' => 'vat'],
             ['label' => 'Billing', 'icon' => 'fa-credit-card', 'route' => route('dashboard.module','billing'), 'id' => 'billing'],
         ]],
         ['label' => 'Tools', 'items' => [

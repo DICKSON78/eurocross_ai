@@ -3,7 +3,7 @@
 <head>
     @php
         $ecTitle = trim($__env->yieldContent('title')) ?: 'EuroCross | Translate Your Store, Grow Everywhere';
-        $ecDesc = trim($__env->yieldContent('description')) ?: 'EuroCross translates your WooCommerce store into 15 languages with SEO and VAT compliance built in.';
+        $ecDesc = trim($__env->yieldContent('description')) ?: 'EuroCross translates WooCommerce product titles and descriptions into 15 languages with a responsive language switcher.';
     @endphp
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -156,8 +156,8 @@
                 <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-400">Product</h2>
                 <ul class="mt-5 space-y-3 text-sm text-white/60">
                     <li><a href="{{ route('features') }}" class="hover:text-white">Smart translation</a></li>
-                    <li><a href="{{ route('features') }}" class="hover:text-white">Multilingual SEO</a></li>
-                    <li><a href="{{ route('features') }}" class="hover:text-white">VAT &amp; OSS</a></li>
+                    <li><a href="{{ route('features') }}" class="hover:text-white">Translation features</a></li>
+                    <li><a href="{{ route('features') }}" class="hover:text-white">Optional VAT tools</a></li>
                     <li><a href="/dashboard" class="hover:text-white">Dashboard</a></li>
                 </ul>
             </div>

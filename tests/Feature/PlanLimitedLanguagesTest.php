@@ -61,6 +61,19 @@ class PlanLimitedLanguagesTest extends TestCase
         ])->assertStatus(422)->assertJsonValidationErrors('target_lang');
     }
 
+    public function test_api_key_in_query_string_returns_401(): void
+    {
+        $settings = EuroCrossSettings::factory()->create();
+        EuroCrossApiKey::factory()
+            ->for($settings, 'shop')
+            ->accessToken('ecx_live_query_token')
+            ->create();
+
+        $this->getJson('/eurocross/settings?api_key=ecx_live_query_token')
+            ->assertUnauthorized()
+            ->assertJsonPath('error', 'A valid X-API-Key header is required.');
+    }
+
     private function authenticatePlan(string $plan, string $token): void
     {
         $settings = EuroCrossSettings::factory()->create(['plan' => $plan]);

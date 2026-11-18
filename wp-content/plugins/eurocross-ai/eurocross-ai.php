@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.1.0');
+    define('EUROCROSS_AI_VERSION', '1.1.1');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -61,6 +61,7 @@ function eurocross_ai_default_options()
         'eurocross_vat_number' => '',
         'eurocross_default_country' => '',
         'eurocross_chatbot_enabled' => 0,
+        'eurocross_allow_public_ai' => 0,
         'eurocross_translate_product_titles' => 1,
         'eurocross_translate_product_descriptions' => 1,
         'eurocross_debug' => 0,
@@ -1097,6 +1098,15 @@ class EuroCross_AI
         );
         register_setting(
             'eurocross-general',
+            'eurocross_allow_public_ai',
+            [
+                'type' => 'boolean',
+                'sanitize_callback' => 'eurocross_ai_sanitize_checkbox',
+                'default' => false,
+            ]
+        );
+        register_setting(
+            'eurocross-general',
             'eurocross_translate_product_titles',
             [
                 'type' => 'boolean',
@@ -1139,6 +1149,7 @@ class EuroCross_AI
             'eurocross_vat_number' => [__('Merchant VAT number', 'eurocross-ai'), 'field_vat_number', 'eurocross_vat'],
             'eurocross_default_country' => [__('Merchant country', 'eurocross-ai'), 'field_default_country', 'eurocross_vat'],
             'eurocross_chatbot_enabled' => [__('Enable chatbot', 'eurocross-ai'), 'field_chatbot_enabled', 'eurocross_chatbot'],
+            'eurocross_allow_public_ai' => [__('Allow public AI requests', 'eurocross-ai'), 'field_allow_public_ai', 'eurocross_advanced'],
             'eurocross_translate_product_titles' => [__('Translate product titles', 'eurocross-ai'), 'field_translate_titles', 'eurocross_translation'],
             'eurocross_translate_product_descriptions' => [__('Translate product descriptions', 'eurocross-ai'), 'field_translate_descriptions', 'eurocross_translation'],
             'eurocross_debug' => [__('Debug logging', 'eurocross-ai'), 'field_debug', 'eurocross_advanced'],
@@ -1361,6 +1372,19 @@ class EuroCross_AI
     {
         ?>
 		<label><input type="checkbox" name="eurocross_chatbot_enabled" value="1"<?php checked(eurocross_ai_is_enabled('eurocross_chatbot_enabled')); ?> /> <?php esc_html_e('Enable the [eurocross_chatbot] shortcode and REST chat endpoint.', 'eurocross-ai'); ?></label>
+		<?php
+    }
+
+    /**
+     * Public AI requests checkbox.
+     *
+     * @return void
+     */
+    public function field_allow_public_ai()
+    {
+        ?>
+		<label><input type="checkbox" name="eurocross_allow_public_ai" value="1"<?php checked(eurocross_ai_is_enabled('eurocross_allow_public_ai')); ?> /> <?php esc_html_e('Allow visitors to make AI requests', 'eurocross-ai'); ?></label>
+		<p class="description"><?php esc_html_e('Disabled by default. Enabling this lets logged-out visitors use translation and chatbot shortcodes, which consumes your EuroCross AI quota. Keep it disabled unless those features are intentionally public.', 'eurocross-ai'); ?></p>
 		<?php
     }
 
@@ -1689,7 +1713,7 @@ class EuroCross_AI
                 'nonce' => wp_create_nonce('wp_rest'),
                 'locale' => eurocross_ai_get_current_locale(),
                 'languages' => eurocross_ai_get_languages(),
-                'canEdit' => current_user_can('edit_posts') ? true : false,
+                'canEdit' => current_user_can('manage_options') ? true : false,
                 'chatbotEnabled' => eurocross_ai_is_enabled('eurocross_chatbot_enabled') ? true : false,
                 'strings' => [
                     'loading' => __('Loading…', 'eurocross-ai'),

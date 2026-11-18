@@ -13,7 +13,7 @@
             <p class="page-subtitle mt-0.5">
                 @switch($module)
                     @case('translation') Track your translation activity and usage @break
-                    @case('vat') Manage VAT settings, validation and OSS reports @break
+                    @case('vat') View optional VAT settings, validation status and informational OSS notes @break
                     @case('billing') Your plan, subscription and payment history @break
                     @case('keys') Manage the keys connected to your store @break
                     @case('chatbot') Review conversations from your store chatbot @break
@@ -39,7 +39,7 @@
         <div class="table-card">
             <div class="flex items-center justify-between border-b border-plum-900/6 px-6 py-4"><h2 class="text-sm font-bold text-plum-900">Quick actions</h2><span class="text-xs text-plum-900/40">Everything you need</span></div>
             <div class="grid gap-3 p-6 sm:grid-cols-3">
-                @foreach ([['translation','Translate content'],['vat','VAT report'],['keys','API keys']] as $action)
+                @foreach ([['translation','Translate content'],['vat','VAT tools'],['keys','API keys']] as $action)
                     <a href="{{ route('dashboard.module',$action[0]) }}" class="flex items-center gap-3 rounded-xl border border-plum-900/6 p-4 text-sm font-medium transition hover:border-rose-500 hover:text-rose-500"><i class="fa-solid fa-arrow-right text-rose-500" aria-hidden="true"></i>{{ $action[1] }}</a>
                 @endforeach
             </div>

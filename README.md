@@ -57,7 +57,7 @@ In Gumroad: **Settings → Advanced → Ping**:
 - Ping URL: `https://eurocross-ai.kadetech.online/eurocross/webhook/gumroad`
 - Enable **Sign pings**.
 
-The webhook verifies the `X-Gumroad-Signature` header as an HMAC-SHA256 digest of the raw body using `GUMROAD_WEBHOOK_SECRET`. If signing is disabled, a `?secret=` query parameter is accepted as a fallback. It also rejects requests whose `seller_id` does not match.
+The webhook verifies the `X-Gumroad-Signature` header as an HMAC-SHA256 digest of the raw body using `GUMROAD_WEBHOOK_SECRET`. A secret in the query string is never accepted. It also rejects requests whose `seller_id` does not match.
 
 > Note: Gumroad's public "Verifying pings" page could not be fetched when this was implemented. The header/algorithm/encoding follow the commonly documented `X-Gumroad-Signature` + HMAC-SHA256 hex convention and are flagged as unverified. The verifier accepts hex (with or without `sha256=` prefix) and base64 forms defensively.
 

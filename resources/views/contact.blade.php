@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Contact | EuroCross')
-@section('description', 'Contact EuroCross for help with translation, billing or VAT compliance.')
+@section('description', 'Contact EuroCross for help with WooCommerce translation, billing, plugin setup or optional VAT tools.')
 
 @section('content')
 
@@ -49,7 +49,7 @@
         <div class="mt-10 grid gap-5 md:grid-cols-3">
             @foreach ([
                 ['fa-envelope','General questions','About features, pricing or getting started.'],
-                ['fa-file-invoice','Billing & VAT','Questions about subscriptions, invoices or OSS reports.'],
+                ['fa-file-invoice','Billing & VAT','Questions about subscriptions, invoices or optional VAT tools.'],
                 ['fa-plug','Technical help','API keys, plugin setup and integrations.'],
             ] as $item)
                 <article class="ec-tile">

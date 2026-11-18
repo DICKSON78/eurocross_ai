@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#7C0E44">
-        <meta name="description" content="EuroCross dashboard for translation usage, billing, VAT compliance, API keys, and chatbot management.">
+        <meta name="description" content="EuroCross dashboard for translation usage, billing, optional VAT tools, API keys, and chatbot management.">
 
         <title>EuroCross — Dashboard</title>
 

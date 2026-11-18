@@ -28,7 +28,7 @@
             <h2 class="ec-display mt-4 text-4xl tracking-tight text-white sm:text-5xl">
                 Give your store a<br><span class="text-rose-400">bigger world.</span>
             </h2>
-            <p class="mt-5 max-w-lg text-sm leading-7 text-white/60 sm:text-base">Start your 7-day free trial. Translation, SEO and VAT for WooCommerce are waiting.</p>
+            <p class="mt-5 max-w-lg text-sm leading-7 text-white/60 sm:text-base">Start your 7-day free trial. Translate WooCommerce products into 15 languages with a simple language switcher.</p>
 
             <a href="{{ config('payment.gumroad.checkout_starter') }}" class="ec-action mt-7 !bg-rose-500 hover:!bg-rose-400">
                 Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
@@ -37,7 +37,7 @@
             <ul class="mt-8 grid gap-3 text-sm text-white/70">
                 @foreach ([
                     ['fa-language', 'Plan-aware languages'],
-                    ['fa-file-invoice', 'VAT and OSS built in'],
+                    ['fa-bolt', 'Cached, server-side translation'],
                     ['fa-robot', 'Optional AI chatbot'],
                 ] as $feature)
                     <li class="flex items-center gap-3">
@@ -47,7 +47,7 @@
                 @endforeach
             </ul>
 
-            <p class="mt-10 border-t border-white/10 pt-6 text-sm text-white/45">Sell in every language. Stay compliant everywhere.</p>
+            <p class="mt-10 border-t border-white/10 pt-6 text-sm text-white/45">Translate every product. Keep your store fast.</p>
         </div>
     </aside>
 

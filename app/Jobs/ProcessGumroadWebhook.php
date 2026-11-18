@@ -26,16 +26,25 @@ class ProcessGumroadWebhook implements ShouldQueue
 
     public int $tries = 3;
 
-    /** @param array<string, mixed> $payload */
-    public function __construct(public array $payload, public string $eventId, public string $eventType = 'sale') {}
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    public function __construct(
+        public array $payload,
+        public string $eventId,
+        public string $eventType = 'sale',
+        public ?int $webhookRecordId = null,
+    ) {}
 
     public function handle(GumroadProvider $gumroad, ?ConnectedSiteService $connectedSites = null): void
     {
         $payload = $this->payload;
-        $record = EuroCrossWebhook::firstOrCreate(
-            ['provider' => 'gumroad', 'event_id' => $this->eventId],
-            ['event' => $this->eventType, 'payload' => $payload, 'signature' => '', 'processed' => false],
-        );
+        $record = $this->webhookRecordId !== null
+            ? EuroCrossWebhook::findOrFail($this->webhookRecordId)
+            : EuroCrossWebhook::firstOrCreate(
+                ['provider' => 'gumroad', 'event_id' => $this->eventId],
+                ['event' => $this->eventType, 'payload' => $payload, 'signature' => '', 'processed' => false],
+            );
 
         if ($record->processed) {
             return;

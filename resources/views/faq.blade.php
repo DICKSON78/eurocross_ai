@@ -23,9 +23,9 @@
     <div class="mx-auto grid max-w-3xl gap-4">
         @foreach ([
             ['How does the free trial work?','Every plan includes 7 days free. No credit card needed to start.'],
-            ['Which languages are supported?','English, French, German, Spanish, Italian, Portuguese, Dutch, Arabic, Chinese and Japanese.'],
+            ['Which languages are supported?','15 languages: English, French, German, Spanish, Italian, Portuguese, Dutch, Arabic, Chinese, Japanese, Swedish, Danish, Finnish, Polish and Greek. Your plan controls how many you can enable.'],
             ['How does billing work?','Monthly subscriptions through Gumroad. Cancel anytime from your Gumroad account.'],
-            ['Is VAT handled?','Yes — 28 EU VAT rates, VIES validation and OSS reports are included.'],
+            ['Is VAT handled?','Optional VAT tools provide VAT treatment information and VIES validation. They do not provide legal advice or guarantee tax compliance.'],
             ['Can I change plans?','Yes. Cancel your current plan and subscribe to another; access continues until period end.'],
             ['Do I need technical skills?','No. Install the plugin, add your key, and EuroCross takes care of the rest.'],
         ] as $faq)
@@ -50,10 +50,10 @@
         </div>
         <div class="mt-10 grid gap-5 md:grid-cols-2">
             @foreach ([
-                ['fa-language','Can I edit translations?','Yes. Every translation can be reviewed and edited before it goes live.'],
+                ['fa-language','Can I edit translations?','Manual translation editing is on the roadmap. Today the plugin translates product titles and descriptions and caches the result.'],
                 ['fa-gauge-high','What happens at the rate limit?','Requests are throttled with clear headers so you know when to retry.'],
-                ['fa-file-invoice','Where do I find OSS reports?','Generate them any time from the VAT section of your dashboard.'],
-                ['fa-key','How secure are my keys?','API keys are hashed at rest and never shown again after creation.'],
+                ['fa-file-invoice','Are OSS reports available?','The dashboard offers informational VAT/OSS notes. It does not generate legally filed OSS reports.'],
+                ['fa-key','How secure are my keys?','SaaS API keys are hashed at rest in the dashboard, while the plugin stores its connected key in WordPress options and renders it only in the admin settings field.'],
             ] as $item)
                 <article class="ec-tile">
                     <span class="grid h-11 w-11 place-items-center rounded-xl bg-rose-50 text-rose-500"><i class="fa-solid {{ $item[0] }}" aria-hidden="true"></i></span>

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 
 @section('title', 'Home | EuroCross')
-@section('description', 'EuroCross translates your WooCommerce store into 15 languages with SEO and VAT compliance built in. Start your 7-day free trial.')
+@section('description', 'EuroCross translates WooCommerce product titles and descriptions into 15 languages with a responsive language switcher. Start your 7-day free trial.')
 
 @push('head')
     <script src="https://gumroad.com/js/gumroad.js"></script>
@@ -15,15 +15,15 @@
     <div class="ec-wrap relative grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
         <div class="ec-scroll-reveal">
             <h1 class="ec-display text-[2.9rem] sm:text-6xl lg:text-[4.1rem]">
-                Your store, in<br><span class="text-rose-500">ten languages.</span>
+                Your store, in<br><span class="text-rose-500">15 languages.</span>
             </h1>
-            <p class="ec-lead mt-6 max-w-xl">Translate products, SEO and checkout content automatically. EuroCross handles the languages — you keep growing the business.</p>
+            <p class="ec-lead mt-6 max-w-xl">Translate WooCommerce product titles and descriptions automatically, then let shoppers switch languages with one click.</p>
             <div class="mt-9 flex flex-wrap gap-3">
                 <a href="{{ config('payment.gumroad.checkout_starter') }}" class="ec-action">Start 7-day free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
                 <a href="#ec-how" class="ec-action-light">See how it works</a>
             </div>
             <div class="mt-10 flex flex-wrap items-center gap-x-7 gap-y-3 text-sm text-plum-900/60">
-                <span class="flex items-center gap-2"><i class="fa-solid fa-star text-rose-500" aria-hidden="true"></i> 4.9/5 rating</span>
+                <span class="flex items-center gap-2"><i class="fa-solid fa-cart-shopping text-rose-500" aria-hidden="true"></i> Built for WooCommerce</span>
                 <span class="flex items-center gap-2"><i class="fa-solid fa-credit-card text-rose-500" aria-hidden="true"></i> No card required</span>
                 <span class="flex items-center gap-2"><i class="fa-solid fa-shield-halved text-rose-500" aria-hidden="true"></i> Cancel anytime</span>
             </div>
@@ -51,7 +51,7 @@
             </div>
             <div class="absolute -bottom-6 -left-4 hidden items-center gap-3 rounded-2xl border border-plum-900/8 bg-white px-4 py-3 shadow-lg sm:flex">
                 <span class="grid h-9 w-9 place-items-center rounded-lg bg-rose-100 text-rose-500"><i class="fa-solid fa-check" aria-hidden="true"></i></span>
-                <div><p class="text-xs font-semibold text-plum-900">SEO optimized</p><p class="text-[10px] text-plum-900/45">Ready to rank locally</p></div>
+                <div><p class="text-xs font-semibold text-plum-900">Language switcher</p><p class="text-[10px] text-plum-900/45">Responsive on desktop and mobile</p></div>
             </div>
         </div>
     </div>
@@ -77,9 +77,9 @@
 
 <section class="border-y border-plum-900/5 bg-white py-10">
     <div class="ec-wrap">
-        <p class="text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-plum-900/40">One platform for every part of going global</p>
+        <p class="text-center text-[11px] font-semibold uppercase tracking-[0.22em] text-plum-900/40">Focused on what your WooCommerce store needs</p>
         <div class="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            @foreach ([['fa-language','Translation'],['fa-magnifying-glass','SEO'],['fa-file-invoice','VAT & OSS'],['fa-chart-line','Analytics']] as $item)
+            @foreach ([['fa-language','Translation'],['fa-globe','Languages'],['fa-cart-shopping','WooCommerce'],['fa-gauge-high','Performance']] as $item)
                 <div class="flex items-center justify-center gap-2 text-plum-900/55"><i class="fa-solid {{ $item[0] }} text-rose-500" aria-hidden="true"></i><span class="text-sm font-medium">{{ $item[1] }}</span></div>
             @endforeach
         </div>
@@ -94,9 +94,9 @@
     </div>
     <div class="mt-12 grid gap-5 md:grid-cols-3">
         @foreach ([
-            ['fa-language','Speak their language','Natural translations across 15 languages for products, categories and store content.'],
-            ['fa-compass','Get found locally','Meta titles, descriptions and URLs translated for search engines in every market.'],
-            ['fa-receipt','Sell compliantly','28 EU VAT rates, VIES validation and OSS reports built into your workflow.'],
+            ['fa-language','Speak their language','Context-aware translations across 15 languages for product titles and descriptions.'],
+            ['fa-globe','Switch with ease','A responsive language switcher that remembers each shopper’s choice.'],
+            ['fa-bolt','Stay fast','Cached translations and server-side requests keep the storefront responsive.'],
         ] as $i => $card)
         <article class="ec-tile ec-scroll-reveal" style="transition-delay:{{ $i * 80 }}ms">
             <span class="grid h-11 w-11 place-items-center rounded-xl bg-rose-50 text-rose-500"><i class="fa-solid {{ $card[0] }}" aria-hidden="true"></i></span>
@@ -115,9 +115,9 @@
     </div>
     <div class="mt-12 grid gap-5 lg:grid-cols-3">
         @foreach ([
-            ['Starter','€12','50,000 words / month','3 languages','60 requests / min','Basic VAT',config('payment.gumroad.checkout_starter'),false],
-            ['Growth','€25','100,000 words / month','5 languages','300 requests / min','Full OSS + VIES',config('payment.gumroad.checkout_growth'),true],
-            ['Scale','€65','300,000 words / month','15 languages','1,000 requests / min','Full OSS + VIES',config('payment.gumroad.checkout_scale'),false],
+            ['Starter','€12','50,000 words / month','3 languages','60 requests / min','Optional VAT tools',config('payment.gumroad.checkout_starter'),false],
+            ['Growth','€25','100,000 words / month','5 languages','300 requests / min','Optional VAT + VIES',config('payment.gumroad.checkout_growth'),true],
+            ['Scale','€65','300,000 words / month','15 languages','1,000 requests / min','Optional VAT + VIES',config('payment.gumroad.checkout_scale'),false],
         ] as $plan)
         <div class="ec-tile flex flex-col {{ $plan[7] ? '!border-rose-400 ring-1 ring-rose-400' : '' }}">
             @if($plan[7])<span class="absolute right-5 top-5 rounded-full bg-rose-500 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Popular</span>@endif
@@ -139,7 +139,7 @@
         <div>
             <span class="text-xs font-semibold uppercase tracking-[0.2em] text-rose-400">Ready when you are</span>
             <h2 class="ec-display mt-4 text-3xl sm:text-5xl">Give your store a bigger world.</h2>
-            <p class="mt-5 max-w-xl text-base leading-8 text-white/60">Start free today. Ten languages, built-in SEO, and VAT compliance are waiting.</p>
+            <p class="mt-5 max-w-xl text-base leading-8 text-white/60">Start free today. Translate your WooCommerce products into 15 languages and give shoppers a simple way to switch.</p>
             <a href="{{ config('payment.gumroad.checkout_starter') }}" class="ec-action !bg-rose-500 mt-8 !hover:!bg-rose-400">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
         </div>
         <div class="rounded-3xl bg-cream/10 p-6 ring-1 ring-white/10 backdrop-blur-sm">

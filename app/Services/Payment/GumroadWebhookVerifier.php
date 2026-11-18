@@ -7,11 +7,10 @@ use Illuminate\Http\Request;
 /**
  * Verifies Gumroad pings.
  *
- * NOTE: Gumroad's public "Verifying pings" page could not be fetched while
- * implementing this. We use the commonly documented X-Gumroad-Signature
- * header with an HMAC-SHA256 digest of the RAW body, hex encoded. Several
- * encodings are accepted defensively. The ?secret= query parameter is only
- * accepted as a fallback for accounts where "Sign pings" is disabled.
+ * Verify the X-Gumroad-Signature header against an HMAC-SHA256 digest of the
+ * raw request body. Several common encodings are accepted defensively, but a
+ * secret supplied in the query string is never accepted because URLs are
+ * routinely stored in logs, proxies, and browser history.
  */
 class GumroadWebhookVerifier
 {
@@ -46,7 +45,6 @@ class GumroadWebhookVerifier
             return false;
         }
 
-        // Fallback: only used when signing is disabled on Gumroad.
-        return hash_equals($secret, (string) $request->query('secret', ''));
+        return false;
     }
 }
