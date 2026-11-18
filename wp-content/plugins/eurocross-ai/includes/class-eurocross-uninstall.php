@@ -27,10 +27,12 @@ class EuroCross_AI_Uninstall
 
         self::delete_options($wpdb);
         self::delete_transients($wpdb);
+        self::delete_post_meta($wpdb);
         self::drop_custom_tables($wpdb);
 
         if (function_exists('wp_clear_scheduled_hook')) {
             wp_clear_scheduled_hook('eurocross_ai_daily_sync');
+            wp_clear_scheduled_hook('eurocross_ai_translate_product');
         }
 
         if (function_exists('flush_rewrite_rules')) {
@@ -133,6 +135,29 @@ class EuroCross_AI_Uninstall
         }
 
         wp_cache_flush();
+    }
+
+    /**
+     * Remove translation records stored on products.
+     *
+     * @param  wpdb  $wpdb  Database abstraction object.
+     * @return void
+     */
+    private static function delete_post_meta($wpdb)
+    {
+        $keys = ['_eurocross_translations', '_eurocross_translation_fingerprint'];
+
+        foreach ($keys as $key) {
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+            $post_ids = $wpdb->get_col($wpdb->prepare("SELECT DISTINCT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s", $key));
+            if (! is_array($post_ids)) {
+                continue;
+            }
+
+            foreach ($post_ids as $post_id) {
+                delete_post_meta(absint($post_id), $key);
+            }
+        }
     }
 
     /**

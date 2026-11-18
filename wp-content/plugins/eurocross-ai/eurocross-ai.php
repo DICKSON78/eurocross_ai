@@ -3,7 +3,7 @@
  * Plugin Name: EuroCross AI
  * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Author: EuroCross AI
@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.1.1');
+    define('EUROCROSS_AI_VERSION', '1.2.0');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -34,6 +34,9 @@ if (! defined('EUROCROSS_AI_TEXT_DOMAIN')) {
 }
 if (! defined('EUROCROSS_AI_CRON_HOOK')) {
     define('EUROCROSS_AI_CRON_HOOK', 'eurocross_ai_daily_sync');
+}
+if (! defined('EUROCROSS_AI_PRODUCT_TRANSLATION_HOOK')) {
+    define('EUROCROSS_AI_PRODUCT_TRANSLATION_HOOK', 'eurocross_ai_translate_product');
 }
 
 require_once EUROCROSS_AI_PLUGIN_DIR.'includes/class-eurocross-api.php';
@@ -64,6 +67,9 @@ function eurocross_ai_default_options()
         'eurocross_allow_public_ai' => 0,
         'eurocross_translate_product_titles' => 1,
         'eurocross_translate_product_descriptions' => 1,
+        'eurocross_auto_translate_on_save' => 0,
+        'eurocross_translate_seo' => 0,
+        'eurocross_translate_slug' => 0,
         'eurocross_debug' => 0,
     ];
 }
@@ -550,7 +556,12 @@ function eurocross_ai_rest_error($error)
         $code = 'eurocross_api_error';
     }
 
-    return new WP_Error($code, $error->get_error_message(), ['status' => $status]);
+    $rest_data = ['status' => $status];
+    if (is_array($data) && isset($data['response']) && is_array($data['response'])) {
+        $rest_data['context'] = $data['response'];
+    }
+
+    return new WP_Error($code, $error->get_error_message(), $rest_data);
 }
 
 /**
@@ -970,6 +981,10 @@ class EuroCross_AI
             eurocross_ai_apply_plan_payload($languagePayload);
         }
         eurocross_ai_get_dashboard_data(true);
+
+        if (class_exists('EuroCross_AI_WooCommerce') && method_exists('EuroCross_AI_WooCommerce', 'sync_product_translations')) {
+            EuroCross_AI_WooCommerce::sync_product_translations();
+        }
     }
 
     /**
@@ -1005,6 +1020,15 @@ class EuroCross_AI
             'manage_options',
             'eurocross-ai-dashboard',
             [$this, 'dashboard_page']
+        );
+
+        add_submenu_page(
+            'eurocross-ai',
+            __('Translations', 'eurocross-ai'),
+            __('Translations', 'eurocross-ai'),
+            'manage_options',
+            'eurocross-ai-translations',
+            [$this, 'translations_page']
         );
 
         add_submenu_page(
@@ -1125,6 +1149,33 @@ class EuroCross_AI
         );
         register_setting(
             'eurocross-general',
+            'eurocross_auto_translate_on_save',
+            [
+                'type' => 'boolean',
+                'sanitize_callback' => 'eurocross_ai_sanitize_checkbox',
+                'default' => false,
+            ]
+        );
+        register_setting(
+            'eurocross-general',
+            'eurocross_translate_seo',
+            [
+                'type' => 'boolean',
+                'sanitize_callback' => 'eurocross_ai_sanitize_checkbox',
+                'default' => false,
+            ]
+        );
+        register_setting(
+            'eurocross-general',
+            'eurocross_translate_slug',
+            [
+                'type' => 'boolean',
+                'sanitize_callback' => 'eurocross_ai_sanitize_checkbox',
+                'default' => false,
+            ]
+        );
+        register_setting(
+            'eurocross-general',
             'eurocross_debug',
             [
                 'type' => 'boolean',
@@ -1152,6 +1203,9 @@ class EuroCross_AI
             'eurocross_allow_public_ai' => [__('Allow public AI requests', 'eurocross-ai'), 'field_allow_public_ai', 'eurocross_advanced'],
             'eurocross_translate_product_titles' => [__('Translate product titles', 'eurocross-ai'), 'field_translate_titles', 'eurocross_translation'],
             'eurocross_translate_product_descriptions' => [__('Translate product descriptions', 'eurocross-ai'), 'field_translate_descriptions', 'eurocross_translation'],
+            'eurocross_auto_translate_on_save' => [__('Auto-translate on product save', 'eurocross-ai'), 'field_auto_translate_on_save', 'eurocross_translation'],
+            'eurocross_translate_seo' => [__('Translate SEO metadata', 'eurocross-ai'), 'field_translate_seo', 'eurocross_translation'],
+            'eurocross_translate_slug' => [__('Translate product URL slugs', 'eurocross-ai'), 'field_translate_slug', 'eurocross_translation'],
             'eurocross_debug' => [__('Debug logging', 'eurocross-ai'), 'field_debug', 'eurocross_advanced'],
         ];
 
@@ -1413,6 +1467,45 @@ class EuroCross_AI
     }
 
     /**
+     * Auto-translate on product save checkbox.
+     *
+     * @return void
+     */
+    public function field_auto_translate_on_save()
+    {
+        ?>
+		<label><input type="checkbox" name="eurocross_auto_translate_on_save" value="1"<?php checked(eurocross_ai_is_enabled('eurocross_auto_translate_on_save')); ?> /> <?php esc_html_e('Queue translations when a WooCommerce product is created or updated.', 'eurocross-ai'); ?></label>
+		<p class="description"><?php esc_html_e('Disabled by default. Requires at least one target language; work is queued in the background and uses your SaaS word quota.', 'eurocross-ai'); ?></p>
+		<?php
+    }
+
+    /**
+     * SEO metadata translation checkbox.
+     *
+     * @return void
+     */
+    public function field_translate_seo()
+    {
+        ?>
+		<label><input type="checkbox" name="eurocross_translate_seo" value="1"<?php checked(eurocross_ai_is_enabled('eurocross_translate_seo')); ?> /> <?php esc_html_e('Also queue SEO title and description translations.', 'eurocross-ai'); ?></label>
+		<p class="description"><?php esc_html_e('Disabled by default. Completed translations are stored in post meta and applied when Yoast or Rank Math is active.', 'eurocross-ai'); ?></p>
+		<?php
+    }
+
+    /**
+     * Product slug translation checkbox.
+     *
+     * @return void
+     */
+    public function field_translate_slug()
+    {
+        ?>
+		<label><input type="checkbox" name="eurocross_translate_slug" value="1"<?php checked(eurocross_ai_is_enabled('eurocross_translate_slug')); ?> /> <?php esc_html_e('Also queue a translated product URL slug.', 'eurocross-ai'); ?></label>
+		<p class="description"><?php esc_html_e('Disabled by default. The translated name is converted to a safe slug when it is applied.', 'eurocross-ai'); ?></p>
+		<?php
+    }
+
+    /**
      * Debug checkbox.
      *
      * @return void
@@ -1622,6 +1715,127 @@ class EuroCross_AI
     }
 
     /**
+     * Translation management page backed by the persisted SaaS records.
+     *
+     * @return void
+     */
+    public function translations_page()
+    {
+        if (! current_user_can('manage_options')) {
+            return;
+        }
+
+        $languages = eurocross_ai_get_languages();
+        ?>
+		<div class="wrap eurocross-ai-page eurocross-translations" data-eurocross-translations>
+			<h1><?php esc_html_e('Translations', 'eurocross-ai'); ?></h1>
+			<p class="description"><?php esc_html_e('Review, edit and retry translations stored by your EuroCross AI account. All figures and records below come from the API.', 'eurocross-ai'); ?></p>
+
+			<p class="eurocross-ajax-status" data-eurocross-translation-status aria-live="polite"></p>
+
+			<section class="eurocross-stat-grid" data-eurocross-translation-summary>
+				<p class="eurocross-empty"><?php esc_html_e('Loading translation summary…', 'eurocross-ai'); ?></p>
+			</section>
+
+			<section class="eurocross-card eurocross-translation-filters">
+				<form data-eurocross-translation-filter-form>
+					<div class="eurocross-translation-filter-grid">
+						<label>
+							<span><?php esc_html_e('Status', 'eurocross-ai'); ?></span>
+							<select name="status">
+								<option value=""><?php esc_html_e('All statuses', 'eurocross-ai'); ?></option>
+								<option value="pending"><?php esc_html_e('Pending', 'eurocross-ai'); ?></option>
+								<option value="processing"><?php esc_html_e('Processing', 'eurocross-ai'); ?></option>
+								<option value="completed"><?php esc_html_e('Completed', 'eurocross-ai'); ?></option>
+								<option value="failed"><?php esc_html_e('Failed', 'eurocross-ai'); ?></option>
+							</select>
+						</label>
+						<label>
+							<span><?php esc_html_e('Target language', 'eurocross-ai'); ?></span>
+							<select name="target_lang">
+								<option value=""><?php esc_html_e('All languages', 'eurocross-ai'); ?></option>
+								<?php foreach ($languages as $language) { ?>
+									<option value="<?php echo esc_attr($language['code']); ?>"><?php echo esc_html(! empty($language['native_name']) ? $language['native_name'] : $language['name']); ?></option>
+								<?php } ?>
+							</select>
+						</label>
+						<label>
+							<span><?php esc_html_e('Source type', 'eurocross-ai'); ?></span>
+							<input type="text" name="source_type" maxlength="64" placeholder="<?php echo esc_attr__('Any', 'eurocross-ai'); ?>" />
+						</label>
+						<label>
+							<span><?php esc_html_e('Rows per page', 'eurocross-ai'); ?></span>
+							<select name="per_page">
+								<option value="20">20</option>
+								<option value="50">50</option>
+								<option value="100">100</option>
+							</select>
+						</label>
+					</div>
+					<p class="submit">
+						<button type="submit" class="button button-primary"><?php esc_html_e('Apply filters', 'eurocross-ai'); ?></button>
+					</p>
+				</form>
+			</section>
+
+			<section class="eurocross-card eurocross-translation-list">
+				<div class="eurocross-translation-toolbar">
+					<label>
+						<span><?php esc_html_e('Bulk action', 'eurocross-ai'); ?></span>
+						<select data-eurocross-bulk-action>
+							<option value=""><?php esc_html_e('Choose an action', 'eurocross-ai'); ?></option>
+							<option value="retry"><?php esc_html_e('Retry selected', 'eurocross-ai'); ?></option>
+							<option value="queue"><?php esc_html_e('Queue selected again', 'eurocross-ai'); ?></option>
+						</select>
+					</label>
+					<button type="button" class="button" data-eurocross-bulk-apply><?php esc_html_e('Apply', 'eurocross-ai'); ?></button>
+					<span class="eurocross-translation-selected" data-eurocross-selected-count></span>
+				</div>
+
+				<table class="widefat striped eurocross-translation-table">
+					<thead>
+						<tr>
+							<th scope="col"><input type="checkbox" data-eurocross-select-all aria-label="<?php echo esc_attr__('Select all rows', 'eurocross-ai'); ?>" /></th>
+							<th scope="col"><?php esc_html_e('ID', 'eurocross-ai'); ?></th>
+							<th scope="col"><?php esc_html_e('Source', 'eurocross-ai'); ?></th>
+							<th scope="col"><?php esc_html_e('Field', 'eurocross-ai'); ?></th>
+							<th scope="col"><?php esc_html_e('Languages', 'eurocross-ai'); ?></th>
+							<th scope="col"><?php esc_html_e('Status', 'eurocross-ai'); ?></th>
+							<th scope="col"><?php esc_html_e('Words', 'eurocross-ai'); ?></th>
+							<th scope="col"><?php esc_html_e('Translation', 'eurocross-ai'); ?></th>
+							<th scope="col"><?php esc_html_e('Actions', 'eurocross-ai'); ?></th>
+						</tr>
+					</thead>
+					<tbody data-eurocross-translation-rows>
+						<tr><td colspan="9"><?php esc_html_e('Loading translations…', 'eurocross-ai'); ?></td></tr>
+					</tbody>
+				</table>
+
+				<div class="eurocross-translation-pagination">
+					<span data-eurocross-translation-page></span>
+					<button type="button" class="button" data-eurocross-page-prev><?php esc_html_e('Previous', 'eurocross-ai'); ?></button>
+					<button type="button" class="button" data-eurocross-page-next><?php esc_html_e('Next', 'eurocross-ai'); ?></button>
+				</div>
+			</section>
+
+			<div class="eurocross-modal" data-eurocross-edit-modal hidden>
+				<div class="eurocross-modal-backdrop" data-eurocross-edit-close></div>
+				<div class="eurocross-modal-content" role="dialog" aria-modal="true" aria-labelledby="eurocross-edit-title">
+					<h2 id="eurocross-edit-title"><?php esc_html_e('Edit translation', 'eurocross-ai'); ?></h2>
+					<p class="eurocross-translation-source" data-eurocross-edit-source></p>
+					<textarea rows="6" maxlength="10000" data-eurocross-edit-text></textarea>
+					<p class="eurocross-ajax-status" data-eurocross-edit-status aria-live="polite"></p>
+					<p class="eurocross-modal-actions">
+						<button type="button" class="button button-primary" data-eurocross-edit-save><?php esc_html_e('Save translation', 'eurocross-ai'); ?></button>
+						<button type="button" class="button" data-eurocross-edit-close><?php esc_html_e('Cancel', 'eurocross-ai'); ?></button>
+					</p>
+				</div>
+			</div>
+		</div>
+		<?php
+    }
+
+    /**
      * Information page.
      *
      * @return void
@@ -1678,9 +1892,11 @@ class EuroCross_AI
             'EuroCrossAdminData',
             [
                 'ajaxUrl' => admin_url('admin-ajax.php'),
+                'restUrl' => esc_url_raw(rest_url('eurocross/v1')),
                 'nonce' => wp_create_nonce('eurocross_admin_action'),
                 'nonceTrial' => wp_create_nonce('eurocross_start_trial'),
                 'nonceCheckout' => wp_create_nonce('eurocross_checkout'),
+                'wpRestNonce' => wp_create_nonce('wp_rest'),
                 'strings' => [
                     'testing' => __('Testing connection…', 'eurocross-ai'),
                     'connected' => __('Connection successful.', 'eurocross-ai'),
@@ -1690,6 +1906,33 @@ class EuroCross_AI
                     'redirect' => __('Opening checkout…', 'eurocross-ai'),
                     'refreshing' => __('Loading…', 'eurocross-ai'),
                     'error' => __('The request failed. Please try again.', 'eurocross-ai'),
+                    'loadingSummary' => __('Loading translation summary…', 'eurocross-ai'),
+                    'loadingTranslations' => __('Loading translations…', 'eurocross-ai'),
+                    'noTranslations' => __('No translations match these filters.', 'eurocross-ai'),
+                    'loadError' => __('Translations could not be loaded.', 'eurocross-ai'),
+                    'summaryError' => __('The translation summary could not be loaded.', 'eurocross-ai'),
+                    'saved' => __('Translation saved.', 'eurocross-ai'),
+                    'retried' => __('Translation queued for retry.', 'eurocross-ai'),
+                    'queued' => __('Translations queued.', 'eurocross-ai'),
+                    'bulkRetried' => __('Selected translations queued for retry.', 'eurocross-ai'),
+                    'selectAction' => __('Choose a bulk action first.', 'eurocross-ai'),
+                    'selectRows' => __('Select at least one translation.', 'eurocross-ai'),
+                    'saving' => __('Saving translation…', 'eurocross-ai'),
+                    'saveFailed' => __('The translation could not be saved.', 'eurocross-ai'),
+                    'edit' => __('Edit', 'eurocross-ai'),
+                    'retry' => __('Retry', 'eurocross-ai'),
+                    'manual' => __('Manual', 'eurocross-ai'),
+                    'yes' => __('Yes', 'eurocross-ai'),
+                    'no' => __('No', 'eurocross-ai'),
+                    'page' => __('Page', 'eurocross-ai'),
+                    'of' => __('of', 'eurocross-ai'),
+                    'totalTranslations' => __('Total translations', 'eurocross-ai'),
+                    'totalWords' => __('Words translated', 'eurocross-ai'),
+                    'failedTranslations' => __('Failed translations', 'eurocross-ai'),
+                    'manualEdits' => __('Manual edits', 'eurocross-ai'),
+                    'quotaRemaining' => __('Words remaining', 'eurocross-ai'),
+                    'recentTranslations' => __('Recent translations', 'eurocross-ai'),
+                    'batches' => __('Batches', 'eurocross-ai'),
                 ],
             ]
         );

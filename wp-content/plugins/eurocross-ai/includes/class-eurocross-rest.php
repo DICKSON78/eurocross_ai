@@ -105,6 +105,125 @@ class EuroCross_AI_REST
                     'vat_number' => ['required' => true],
                 ],
             ],
+            '/translations' => [
+                'methods' => 'GET',
+                'callback' => [$this, 'get_translations'],
+                'permission_callback' => [$this, 'can_manage_translations'],
+                'args' => [
+                    'status' => [
+                        'required' => false,
+                        'type' => 'string',
+                        'sanitize_callback' => 'sanitize_key',
+                    ],
+                    'target_lang' => [
+                        'required' => false,
+                        'type' => 'string',
+                        'sanitize_callback' => 'eurocross_ai_sanitize_language_code',
+                    ],
+                    'source_type' => [
+                        'required' => false,
+                        'type' => 'string',
+                        'sanitize_callback' => 'sanitize_key',
+                    ],
+                    'per_page' => [
+                        'required' => false,
+                        'type' => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ],
+                    'page' => [
+                        'required' => false,
+                        'type' => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ],
+                ],
+            ],
+            '/translations/summary' => [
+                'methods' => 'GET',
+                'callback' => [$this, 'get_translation_summary'],
+                'permission_callback' => [$this, 'can_manage_translations'],
+                'args' => [
+                    'days' => [
+                        'required' => false,
+                        'type' => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ],
+                ],
+            ],
+            '/translations/bulk' => [
+                'methods' => 'POST',
+                'callback' => [$this, 'queue_bulk_translations'],
+                'permission_callback' => [$this, 'can_manage_translations'],
+                'args' => [
+                    'source_lang' => [
+                        'required' => false,
+                        'type' => 'string',
+                        'sanitize_callback' => 'eurocross_ai_sanitize_language_code',
+                    ],
+                    'target_lang' => [
+                        'required' => true,
+                        'type' => 'string',
+                        'sanitize_callback' => 'eurocross_ai_sanitize_language_code',
+                    ],
+                    'items' => [
+                        'required' => true,
+                        'type' => 'array',
+                        'maxItems' => 100,
+                    ],
+                ],
+            ],
+            '/translations/bulk-retry' => [
+                'methods' => 'POST',
+                'callback' => [$this, 'retry_bulk_translations'],
+                'permission_callback' => [$this, 'can_manage_translations'],
+                'args' => [
+                    'ids' => [
+                        'required' => true,
+                        'type' => 'array',
+                        'maxItems' => 100,
+                    ],
+                ],
+            ],
+            '/translations/(?P<id>\d+)' => [
+                'methods' => 'GET',
+                'callback' => [$this, 'get_translation'],
+                'permission_callback' => [$this, 'can_manage_translations'],
+                'args' => [
+                    'id' => [
+                        'required' => true,
+                        'type' => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ],
+                ],
+            ],
+            '/translations/(?P<id>\d+)/update' => [
+                'methods' => 'POST',
+                'callback' => [$this, 'update_translation'],
+                'permission_callback' => [$this, 'can_manage_translations'],
+                'args' => [
+                    'id' => [
+                        'required' => true,
+                        'type' => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ],
+                    'translated_text' => [
+                        'required' => true,
+                        'type' => 'string',
+                        'sanitize_callback' => 'wp_kses_post',
+                    ],
+                ],
+            ],
+            '/translations/(?P<id>\d+)/retry' => [
+                'methods' => 'POST',
+                'callback' => [$this, 'retry_translation'],
+                'permission_callback' => [$this, 'can_manage_translations'],
+                'args' => [
+                    'id' => [
+                        'required' => true,
+                        'type' => 'integer',
+                        'sanitize_callback' => 'absint',
+                    ],
+                ],
+            ],
         ];
 
         foreach ($routes as $route => $options) {
@@ -284,6 +403,30 @@ class EuroCross_AI_REST
         }
 
         return true;
+    }
+
+    /**
+     * Translation management routes are private to site administrators.
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return true|WP_Error
+     */
+    public function can_manage_translations($request)
+    {
+        $nonce_check = $this->verify_nonce($request);
+        if (is_wp_error($nonce_check)) {
+            return $nonce_check;
+        }
+
+        if (! current_user_can('manage_options')) {
+            return new WP_Error(
+                'eurocross_rest_forbidden',
+                __('You are not allowed to manage translations.', 'eurocross-ai'),
+                ['status' => 403]
+            );
+        }
+
+        return $this->enforce_rate_limit($request, 'admin_translations', 120, MINUTE_IN_SECONDS);
     }
 
     /**
@@ -595,5 +738,224 @@ class EuroCross_AI_REST
                 ],
             ]
         );
+    }
+
+    /**
+     * GET eurocross/v1/translations
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_translations($request)
+    {
+        $args = [];
+        foreach (['status', 'target_lang', 'source_type', 'per_page', 'page'] as $key) {
+            $value = $request->get_param($key);
+            if ($value !== null) {
+                $args[$key] = $value;
+            }
+        }
+
+        $response = eurocross_ai_get_api()->translations($args);
+        if (is_wp_error($response)) {
+            return eurocross_ai_rest_error($response);
+        }
+
+        return rest_ensure_response($response);
+    }
+
+    /**
+     * GET eurocross/v1/translations/summary
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_translation_summary($request)
+    {
+        $days = absint($request->get_param('days'));
+        if ($days < 1) {
+            $days = 30;
+        }
+        $days = min(90, $days);
+
+        $response = eurocross_ai_get_api()->translation_summary($days);
+        if (is_wp_error($response)) {
+            return eurocross_ai_rest_error($response);
+        }
+
+        return rest_ensure_response($response);
+    }
+
+    /**
+     * GET eurocross/v1/translations/{id}
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function get_translation($request)
+    {
+        $response = eurocross_ai_get_api()->translation(absint($request['id']));
+        if (is_wp_error($response)) {
+            return eurocross_ai_rest_error($response);
+        }
+
+        return rest_ensure_response($response);
+    }
+
+    /**
+     * POST eurocross/v1/translations/{id}/update
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function update_translation($request)
+    {
+        $translation_id = absint($request['id']);
+        $translated_text = (string) $request->get_param('translated_text');
+
+        if (trim(wp_strip_all_tags($translated_text)) === '') {
+            return new WP_Error('eurocross_empty_translation', __('Enter the translated text.', 'eurocross-ai'), ['status' => 400]);
+        }
+
+        $response = eurocross_ai_get_api()->update_translation($translation_id, $translated_text);
+        if (is_wp_error($response)) {
+            return eurocross_ai_rest_error($response);
+        }
+
+        $this->store_translation_locally($response);
+
+        return rest_ensure_response($response);
+    }
+
+    /**
+     * POST eurocross/v1/translations/{id}/retry
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function retry_translation($request)
+    {
+        $response = eurocross_ai_get_api()->retry_translation(absint($request['id']));
+        if (is_wp_error($response)) {
+            return eurocross_ai_rest_error($response);
+        }
+
+        $this->store_translation_locally($response);
+
+        return rest_ensure_response($response);
+    }
+
+    /**
+     * POST eurocross/v1/translations/bulk
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function queue_bulk_translations($request)
+    {
+        $items = $request->get_param('items');
+        $target_lang = eurocross_ai_sanitize_language_code($request->get_param('target_lang'));
+        $source_lang = eurocross_ai_sanitize_language_code($request->get_param('source_lang'));
+
+        if (! is_array($items) || empty($items)) {
+            return new WP_Error('eurocross_empty_translation_items', __('Select at least one translation to queue.', 'eurocross-ai'), ['status' => 400]);
+        }
+        if ($target_lang === '') {
+            return new WP_Error('eurocross_invalid_target_language', __('A valid target language is required.', 'eurocross-ai'), ['status' => 400]);
+        }
+        if ($source_lang === '') {
+            $source_lang = eurocross_ai_sanitize_language_code(eurocross_ai_get_option('eurocross_locale'));
+        }
+
+        $response = eurocross_ai_get_api()->bulk_translations($items, $source_lang, $target_lang);
+        if (is_wp_error($response)) {
+            return eurocross_ai_rest_error($response);
+        }
+
+        $records = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
+        foreach ($records as $record) {
+            $this->store_translation_locally(['data' => $record]);
+        }
+
+        return rest_ensure_response($response);
+    }
+
+    /**
+     * POST eurocross/v1/translations/bulk-retry
+     *
+     * @param  WP_REST_Request  $request  Request object.
+     * @return WP_REST_Response|WP_Error
+     */
+    public function retry_bulk_translations($request)
+    {
+        $ids = array_values(array_filter(array_map('absint', (array) $request->get_param('ids'))));
+        if (empty($ids)) {
+            return new WP_Error('eurocross_empty_translation_ids', __('Select at least one translation to retry.', 'eurocross-ai'), ['status' => 400]);
+        }
+        if (count($ids) > 100) {
+            $ids = array_slice($ids, 0, 100);
+        }
+
+        $records = [];
+        $errors = [];
+
+        foreach ($ids as $translation_id) {
+            $response = eurocross_ai_get_api()->retry_translation($translation_id);
+            if (is_wp_error($response)) {
+                $errors[] = sprintf(
+                    /* translators: 1: translation ID, 2: error message. */
+                    __('Translation %1$d: %2$s', 'eurocross-ai'),
+                    $translation_id,
+                    $response->get_error_message()
+                );
+
+                continue;
+            }
+
+            $record = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
+            $this->store_translation_locally(['data' => $record]);
+            $records[] = $record;
+        }
+
+        if (empty($records) && ! empty($errors)) {
+            return new WP_Error(
+                'eurocross_bulk_retry_failed',
+                esc_html(implode(' ', $errors)),
+                ['status' => 502]
+            );
+        }
+
+        return rest_ensure_response(
+            [
+                'success' => true,
+                'data' => $records,
+                'errors' => $errors,
+                'meta' => [
+                    'requested' => count($ids),
+                    'succeeded' => count($records),
+                    'failed' => count($errors),
+                ],
+            ]
+        );
+    }
+
+    /**
+     * Mirror a SaaS translation record into local product meta when possible.
+     *
+     * @param  array<string,mixed>  $response  Decoded SaaS response.
+     * @return void
+     */
+    private function store_translation_locally($response)
+    {
+        if (! class_exists('EuroCross_AI_WooCommerce')) {
+            return;
+        }
+
+        $record = isset($response['data']) && is_array($response['data']) ? $response['data'] : [];
+        if (empty($record) || ! method_exists('EuroCross_AI_WooCommerce', 'store_translation_record')) {
+            return;
+        }
+
+        EuroCross_AI_WooCommerce::store_translation_record($record);
     }
 }

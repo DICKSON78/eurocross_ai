@@ -2,9 +2,9 @@
 # This file is distributed under the GPLv2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: EuroCross AI 1.0.0\n"
+"Project-Id-Version: EuroCross AI 1.2.0\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/eurocross-ai\n"
-"POT-Creation-Date: 2026-11-17 00:00+0000\n"
+"POT-Creation-Date: 2026-11-18 00:00+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -27,6 +27,134 @@ msgstr ""
 
 #: eurocross-ai.php
 msgid "Info"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Translations"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Review, edit and retry translations stored by your EuroCross AI account. All figures and records below come from the API."
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Loading translation summary…"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Status"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "All statuses"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Pending"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Processing"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Completed"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Failed"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Target language"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "All languages"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Source type"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Any"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Rows per page"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Apply filters"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Bulk action"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Choose an action"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Retry selected"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Queue selected again"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Apply"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Select all rows"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "ID"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Field"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Languages"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Words"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Actions"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Loading translations…"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Previous"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Next"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Edit translation"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Save translation"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Cancel"
 msgstr ""
 
 #: eurocross-ai.php
@@ -95,6 +223,42 @@ msgstr ""
 
 #: eurocross-ai.php
 msgid "Translate product descriptions"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Auto-translate on product save"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Queue translations when a WooCommerce product is created or updated."
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Disabled by default. Requires at least one target language; work is queued in the background and uses your SaaS word quota."
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Translate SEO metadata"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Also queue SEO title and description translations."
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Disabled by default. Completed translations are stored in post meta and applied when Yoast or Rank Math is active."
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Translate product URL slugs"
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Also queue a translated product URL slug."
+msgstr ""
+
+#: eurocross-ai.php
+msgid "Disabled by default. The translated name is converted to a safe slug when it is applied."
 msgstr ""
 
 #: eurocross-ai.php
@@ -213,4 +377,129 @@ msgid "Yes"
 msgstr ""
 
 msgid "No"
+msgstr ""
+
+#: assets/admin.js
+msgid "No translations match these filters."
+msgstr ""
+
+#: assets/admin.js
+msgid "Translations could not be loaded."
+msgstr ""
+
+#: assets/admin.js
+msgid "The translation summary could not be loaded."
+msgstr ""
+
+#: assets/admin.js
+msgid "Translation saved."
+msgstr ""
+
+#: assets/admin.js
+msgid "Translation queued for retry."
+msgstr ""
+
+#: assets/admin.js
+msgid "Translations queued."
+msgstr ""
+
+#: assets/admin.js
+msgid "Selected translations queued for retry."
+msgstr ""
+
+#: assets/admin.js
+msgid "Choose a bulk action first."
+msgstr ""
+
+#: assets/admin.js
+msgid "Select at least one translation."
+msgstr ""
+
+#: assets/admin.js
+msgid "Saving translation…"
+msgstr ""
+
+#: assets/admin.js
+msgid "The translation could not be saved."
+msgstr ""
+
+#: eurocross-ai.php assets/admin.js
+msgid "Edit"
+msgstr ""
+
+#: eurocross-ai.php assets/admin.js
+msgid "Retry"
+msgstr ""
+
+#: assets/admin.js
+msgid "Manual"
+msgstr ""
+
+#: assets/admin.js
+msgid "Page"
+msgstr ""
+
+#: assets/admin.js
+msgid "of"
+msgstr ""
+
+#: assets/admin.js
+msgid "Total translations"
+msgstr ""
+
+#: assets/admin.js
+msgid "Words translated"
+msgstr ""
+
+#: assets/admin.js
+msgid "Failed translations"
+msgstr ""
+
+#: assets/admin.js
+msgid "Manual edits"
+msgstr ""
+
+#: assets/admin.js
+msgid "Words remaining"
+msgstr ""
+
+#: assets/admin.js
+msgid "Recent translations"
+msgstr ""
+
+#: assets/admin.js
+msgid "Batches"
+msgstr ""
+
+#: includes/class-eurocross-rest.php
+msgid "You are not allowed to manage translations."
+msgstr ""
+
+#: includes/class-eurocross-rest.php includes/class-eurocross-api.php
+msgid "A valid translation ID is required."
+msgstr ""
+
+#: includes/class-eurocross-api.php
+msgid "There are no translatable fields to queue."
+msgstr ""
+
+#: includes/class-eurocross-api.php includes/class-eurocross-rest.php
+msgid "A valid target language is required."
+msgstr ""
+
+#: includes/class-eurocross-rest.php
+msgid "Select at least one translation to queue."
+msgstr ""
+
+#: includes/class-eurocross-rest.php
+msgid "Enter the translated text."
+msgstr ""
+
+#: includes/class-eurocross-rest.php
+msgid "Select at least one translation to retry."
+msgstr ""
+
+#. translators: 1: translation ID, 2: error message.
+#: includes/class-eurocross-rest.php
+msgid "Translation %1$d: %2$s"
 msgstr ""

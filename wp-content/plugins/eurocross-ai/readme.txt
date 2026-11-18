@@ -5,7 +5,7 @@ Tags: translation, woocommerce, multilingual, vat, chatbot
 Requires at least: 6.2
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.2.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,6 +18,10 @@ EuroCross AI connects your WooCommerce store to your EuroCross AI SaaS account. 
 = Features =
 
 * **AI translation** — translate product titles and descriptions through the SaaS API, with local transients that cache results and preserve the original text if the API is unavailable.
+* **Persisted translations** — completed translations are stored by your SaaS account and mirrored into product meta for the active locale, so saved work is not translated or billed twice. Administrators can review, edit and retry records from **EuroCross AI > Translations**.
+* **Auto-translate on save (optional)** — queue product titles, descriptions and optional SEO fields for every target language when a WooCommerce product is created or updated. Disabled by default; a content fingerprint prevents duplicate jobs.
+* **Quota visibility** — the Translations screen shows real totals, per-language counts and the monthly word allowance returned by the API. Requests reserve words before work is queued and release them on failure or manual edit.
+* **SEO and slugs (optional)** — translated Yoast/Rank Math titles and descriptions are served for the active locale, and translated product slugs are applied to generated product links. Both options are disabled by default.
 * **Language switcher** — a widget and the `[eurocross_language_switcher]` shortcode render the languages actually returned by the API. Visitors can persist their choice in a cookie or local storage.
 * **Chatbot (optional)** — the `[eurocross_chatbot]` shortcode posts messages to the REST chat endpoint, which calls the SaaS API server-side. Both the chatbot and public AI requests must be enabled.
 * **VAT and OSS (optional)** — add a VAT number field to checkout, validate numbers through VIES, request VAT treatment information from the API and display reverse-charge or OSS notes. This is informational only and is not tax or legal advice.
@@ -32,7 +36,7 @@ This plugin requires an active EuroCross AI SaaS account. Use **Connect with Eur
 
 = Privacy =
 
-The plugin stores the configured settings, cached translations, cached language lists and the last connection status in your WordPress database. Translated text may be cached locally to avoid repeated API calls. All plugin data is removed when the plugin is uninstalled. Requests to the external API are subject to the privacy policy of your EuroCross AI provider.
+The plugin stores the configured settings, cached translations, cached language lists and the last connection status in your WordPress database. Completed product translations are also kept in post meta so they can be rendered without another API call. All plugin data, including that post meta, is removed when the plugin is uninstalled. Requests to the external API are subject to the privacy policy of your EuroCross AI provider.
 
 == Installation ==
 
@@ -69,13 +73,21 @@ Enable the chatbot option and the **Allow public AI requests** option, then add 
 
 When a customer enters a VAT number and the optional VAT module is enabled, the plugin validates it through the VIES endpoint and requests VAT treatment information from the API. The returned rate, reason and reverse-charge status are displayed in the order review. Confirm the final tax treatment with your tax adviser; the plugin does not provide legal or tax compliance guarantees.
 
+= How does auto-translation on product save work? =
+
+Enable it in **EuroCross AI > Settings > Translation** and select at least one target language. Saving a WooCommerce product schedules a background job that queues one translation per field and target language through the SaaS API. Only changed content is queued, and the job never blocks the save request. The words shown on the Translations screen come from your SaaS plan and usage records.
+
+= Are translated slugs resolved automatically? =
+
+Translated slugs are stored per locale and applied to generated product links when the option is enabled. Whether those URLs resolve depends on your permalink and multilingual setup; the plugin does not create separate products or rewrite rules for each language.
+
 = Is any data stored externally? =
 
 Yes. Text, VAT numbers and messages are transmitted to the configured EuroCross AI API. See the Privacy section above and your provider's privacy policy.
 
 = How do I remove all plugin data? =
 
-Uninstalling the plugin deletes its options, transients, cached translations, user meta, scheduled cron events and any plugin tables.
+Uninstalling the plugin deletes its options, transients, cached translations, stored product translation meta, user meta, scheduled cron events and any plugin tables.
 
 == Screenshots ==
 
@@ -84,6 +96,14 @@ Uninstalling the plugin deletes its options, transients, cached translations, us
 3. A WooCommerce storefront with the language switcher and VAT checkout field.
 
 == Changelog ==
+
+= 1.2.0 =
+* Added a Translations screen backed by persisted SaaS records: live filters, status table, manual edits, single and bulk retries, and quota/usage figures from the API.
+* Added optional auto-translate on WooCommerce product save with fingerprint deduplication and background scheduling.
+* Added optional translation of SEO metadata and product slugs, stored per locale and applied for the active language.
+* Added local product translation storage with a daily sync from the SaaS API and reuse of completed translations before any new API call.
+* Propagated real API error messages and HTTP statuses to the admin UI, including word-quota responses.
+* Extended uninstall cleanup for stored product translation meta and the product translation cron event.
 
 = 1.1.1 =
 * Public AI requests are now disabled by default; enable the setting only for intentionally public translation/chatbot shortcodes.
@@ -107,6 +127,9 @@ Uninstalling the plugin deletes its options, transients, cached translations, us
 * Daily health sync, debug logging and complete uninstall cleanup.
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+Review the new Translations screen and enable auto-translation or SEO/slug options only if you want them. All new translation options are disabled by default.
 
 = 1.1.0 =
 Reconnect from EuroCross AI > Settings to enable automatic plan and language syncing. A EuroCross AI SaaS account is required.

@@ -102,6 +102,168 @@ class EuroCross_AI_API
     }
 
     /**
+     * GET /eurocross/translations
+     *
+     * @param  array<string,mixed>  $args  Supported filters: status, target_lang, source_type, per_page and page.
+     * @return array|WP_Error
+     */
+    public function translations($args = [])
+    {
+        $query = [];
+        $allowed = ['status', 'target_lang', 'source_type', 'per_page', 'page'];
+
+        foreach ($allowed as $key) {
+            if (! array_key_exists($key, $args)) {
+                continue;
+            }
+
+            if ($key === 'per_page' || $key === 'page') {
+                $value = absint($args[$key]);
+                if ($value > 0) {
+                    $query[$key] = $value;
+                }
+
+                continue;
+            }
+
+            $value = sanitize_text_field((string) $args[$key]);
+            if ($key === 'target_lang') {
+                $value = $this->base_language_code($value);
+            }
+            if ($value !== '') {
+                $query[$key] = $value;
+            }
+        }
+
+        $path = '/eurocross/translations';
+        if (! empty($query)) {
+            $path .= '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+        }
+
+        return $this->request('GET', $path);
+    }
+
+    /**
+     * GET /eurocross/translations/summary
+     *
+     * @param  int  $days  Reporting window, from 1 to 90 days.
+     * @return array|WP_Error
+     */
+    public function translation_summary($days = 30)
+    {
+        $days = absint($days);
+        if ($days < 1) {
+            $days = 30;
+        }
+        $days = min(90, $days);
+
+        return $this->request('GET', '/eurocross/translations/summary?'.http_build_query(['days' => $days], '', '&', PHP_QUERY_RFC3986));
+    }
+
+    /**
+     * GET /eurocross/translations/{id}
+     *
+     * @param  int  $translation_id  Translation record ID.
+     * @return array|WP_Error
+     */
+    public function translation($translation_id)
+    {
+        $translation_id = absint($translation_id);
+        if ($translation_id === 0) {
+            return new WP_Error('eurocross_invalid_translation', __('A valid translation ID is required.', 'eurocross-ai'), ['status' => 400]);
+        }
+
+        return $this->request('GET', '/eurocross/translations/'.$translation_id);
+    }
+
+    /**
+     * PUT /eurocross/translations/{id}
+     *
+     * @param  int  $translation_id  Translation record ID.
+     * @param  string  $translated_text  Manually edited translation.
+     * @return array|WP_Error
+     */
+    public function update_translation($translation_id, $translated_text)
+    {
+        $translation_id = absint($translation_id);
+        if ($translation_id === 0) {
+            return new WP_Error('eurocross_invalid_translation', __('A valid translation ID is required.', 'eurocross-ai'), ['status' => 400]);
+        }
+
+        return $this->request(
+            'PUT',
+            '/eurocross/translations/'.$translation_id,
+            ['translated_text' => wp_kses_post((string) $translated_text)]
+        );
+    }
+
+    /**
+     * POST /eurocross/translations/{id}/retry
+     *
+     * @param  int  $translation_id  Translation record ID.
+     * @return array|WP_Error
+     */
+    public function retry_translation($translation_id)
+    {
+        $translation_id = absint($translation_id);
+        if ($translation_id === 0) {
+            return new WP_Error('eurocross_invalid_translation', __('A valid translation ID is required.', 'eurocross-ai'), ['status' => 400]);
+        }
+
+        return $this->request('POST', '/eurocross/translations/'.$translation_id.'/retry');
+    }
+
+    /**
+     * POST /eurocross/translations/bulk
+     *
+     * @param  array<int,array<string,mixed>>  $items  Translation items.
+     * @param  string  $source_lang  Source language code.
+     * @param  string  $target_lang  Target language code.
+     * @return array|WP_Error
+     */
+    public function bulk_translations($items, $source_lang, $target_lang)
+    {
+        $source_lang = $this->base_language_code($source_lang, 'en');
+        $target_lang = $this->base_language_code($target_lang);
+        $payload = [];
+
+        foreach ((array) $items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $text = wp_kses_post((string) (isset($item['text']) ? $item['text'] : ''));
+            if (trim(wp_strip_all_tags($text)) === '') {
+                continue;
+            }
+
+            $payload[] = [
+                'text' => substr($text, 0, 10000),
+                'source_type' => sanitize_key((string) (isset($item['source_type']) ? $item['source_type'] : 'manual')),
+                'source_id' => sanitize_text_field((string) (isset($item['source_id']) ? $item['source_id'] : '0')),
+                'field' => sanitize_key((string) (isset($item['field']) ? $item['field'] : 'content')),
+            ];
+        }
+
+        if (empty($payload)) {
+            return new WP_Error('eurocross_empty_translation_items', __('There are no translatable fields to queue.', 'eurocross-ai'), ['status' => 400]);
+        }
+        if ($target_lang === '') {
+            return new WP_Error('eurocross_invalid_target_language', __('A valid target language is required.', 'eurocross-ai'), ['status' => 400]);
+        }
+
+        return $this->request(
+            'POST',
+            '/eurocross/translations/bulk',
+            [
+                'source_lang' => $source_lang !== '' ? $source_lang : 'en',
+                'target_lang' => $target_lang,
+                'items' => $payload,
+            ]
+        );
+    }
+
+    /**
      * Exchange a one-time WordPress connection code for an API key.
      *
      * @param  string  $code  One-time code from the SaaS approval screen.
@@ -244,6 +406,26 @@ class EuroCross_AI_API
     }
 
     /**
+     * Reduce a locale to the two-letter code expected by the SaaS API.
+     *
+     * @param  mixed  $code  Language code.
+     * @param  string  $fallback  Value returned when the code is unusable.
+     * @return string
+     */
+    private function base_language_code($code, $fallback = '')
+    {
+        $code = eurocross_ai_sanitize_language_code($code);
+        if ($code === '') {
+            return $fallback;
+        }
+
+        $parts = explode('-', $code);
+        $base = strtolower($parts[0]);
+
+        return preg_match('/^[a-z]{2}$/', $base) ? $base : $fallback;
+    }
+
+    /**
      * Perform an authenticated request and decode the JSON response.
      *
      * @param  string  $method  HTTP method.
@@ -311,22 +493,44 @@ class EuroCross_AI_API
 
         $status_code = (int) wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
+        $decoded = json_decode($body, true);
+        $has_json = json_last_error() === JSON_ERROR_NONE && is_array($decoded);
 
         if ($status_code < 200 || $status_code >= 300) {
+            $message = '';
+            if ($has_json) {
+                if (! empty($decoded['error'])) {
+                    $message = sanitize_text_field(wp_strip_all_tags((string) $decoded['error']));
+                } elseif (! empty($decoded['message'])) {
+                    $message = sanitize_text_field(wp_strip_all_tags((string) $decoded['message']));
+                }
+            }
+
+            if ($message === '') {
+                return new WP_Error(
+                    'eurocross_http_error',
+                    sprintf(
+                        /* translators: %d: HTTP status code. */
+                        __('EuroCross AI API returned HTTP %d.', 'eurocross-ai'),
+                        $status_code
+                    ),
+                    ['status' => 502]
+                );
+            }
+
+            $error_status = ($status_code >= 400 && $status_code <= 599) ? $status_code : 502;
+
             return new WP_Error(
-                'eurocross_http_error',
-                sprintf(
-                    /* translators: %d: HTTP status code. */
-                    __('EuroCross AI API returned HTTP %d.', 'eurocross-ai'),
-                    $status_code
-                ),
-                ['status' => 502]
+                'eurocross_api_error',
+                $message,
+                [
+                    'status' => $error_status,
+                    'response' => ($has_json && isset($decoded['data'])) ? $decoded['data'] : [],
+                ]
             );
         }
 
-        $decoded = json_decode($body, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE || ! is_array($decoded)) {
+        if (! $has_json) {
             return new WP_Error(
                 'eurocross_invalid_response',
                 __('EuroCross AI API returned an invalid JSON response.', 'eurocross-ai'),
@@ -346,7 +550,10 @@ class EuroCross_AI_API
             return new WP_Error(
                 'eurocross_api_error',
                 $message,
-                ['status' => 502]
+                [
+                    'status' => 502,
+                    'response' => isset($decoded['data']) ? $decoded['data'] : [],
+                ]
             );
         }
 

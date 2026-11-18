@@ -36,6 +36,7 @@ class EuroCrossTranslation extends Model
         'tokens',
         'cost',
         'batch_id',
+        'quota_reservation_id',
     ];
 
     /** @var array<string, string> */
@@ -50,6 +51,11 @@ class EuroCrossTranslation extends Model
     public function shop(): BelongsTo
     {
         return $this->belongsTo(EuroCrossSettings::class, 'shop_id');
+    }
+
+    public function quotaReservation(): BelongsTo
+    {
+        return $this->belongsTo(EuroCrossQuotaReservation::class, 'quota_reservation_id');
     }
 
     public function jobs(): HasMany

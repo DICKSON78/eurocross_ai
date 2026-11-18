@@ -90,6 +90,11 @@ class EuroCrossSettings extends Model
         return $this->hasMany(EuroCrossTranslationJob::class, 'shop_id');
     }
 
+    public function quotaReservations(): HasMany
+    {
+        return $this->hasMany(EuroCrossQuotaReservation::class, 'shop_id');
+    }
+
     public function transactions(): HasMany
     {
         return $this->hasMany(EuroCrossTransaction::class, 'shop_id');

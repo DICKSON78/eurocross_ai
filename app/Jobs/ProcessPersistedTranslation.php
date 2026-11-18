@@ -34,6 +34,7 @@ class ProcessPersistedTranslation implements ShouldBeUnique, ShouldQueue
         $job = EuroCrossTranslationJob::query()->findOrFail($this->jobId);
 
         if ($translation->manually_edited || $translation->status === 'completed') {
+            $translation->quotaReservation?->release();
             $job->markCompleted();
 
             return;
@@ -67,6 +68,7 @@ class ProcessPersistedTranslation implements ShouldBeUnique, ShouldQueue
             (int) $translation->words,
             (float) ($result['cost'] ?? 0),
         );
+        $translation->quotaReservation?->commit();
         $job->markCompleted();
     }
 
@@ -74,9 +76,12 @@ class ProcessPersistedTranslation implements ShouldBeUnique, ShouldQueue
     {
         $message = $exception?->getMessage() ?: 'Translation job failed.';
 
-        EuroCrossTranslation::query()
-            ->find($this->translationId)
-            ?->markFailed($message);
+        $translation = EuroCrossTranslation::query()->find($this->translationId);
+
+        if ($translation instanceof EuroCrossTranslation) {
+            $translation->quotaReservation?->release();
+            $translation->markFailed($message);
+        }
 
         EuroCrossTranslationJob::query()
             ->find($this->jobId)

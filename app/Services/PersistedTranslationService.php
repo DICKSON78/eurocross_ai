@@ -2,16 +2,21 @@
 
 namespace App\Services;
 
+use App\Exceptions\QuotaExceededException;
 use App\Jobs\ProcessPersistedTranslation;
 use App\Models\EuroCrossSettings;
 use App\Models\EuroCrossTranslation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 class PersistedTranslationService
 {
-    public function __construct(private TranslationService $translationService) {}
+    public function __construct(
+        private TranslationService $translationService,
+        private QuotaReservationService $quotaReservations,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $item
@@ -29,6 +34,7 @@ class PersistedTranslationService
         $sourceLocale = (string) ($item['source_locale'] ?? 'en');
         $targetLocale = (string) ($item['target_locale'] ?? '');
         $sourceHash = $this->hash($sourceText, $sourceLocale, $targetLocale);
+        $words = $this->countWords($sourceText);
 
         $translation = EuroCrossTranslation::query()->firstOrCreate(
             [
@@ -42,7 +48,7 @@ class PersistedTranslationService
             [
                 'source_hash' => $sourceHash,
                 'source_text' => $sourceText,
-                'words' => $this->countWords($sourceText),
+                'words' => $words,
                 'status' => 'pending',
                 'batch_id' => $batchId,
             ]
@@ -60,18 +66,32 @@ class PersistedTranslationService
             return $translation;
         }
 
-        if ($translation->status === 'processing') {
+        if ($translation->status === 'processing' || $this->hasActiveJob($translation)) {
             return $translation;
+        }
+
+        $wasRecentlyCreated = $translation->wasRecentlyCreated;
+        $this->quotaReservations->release($translation->quotaReservation);
+
+        try {
+            $reservation = $this->quotaReservations->reserve($shop, $words);
+        } catch (QuotaExceededException $exception) {
+            if ($wasRecentlyCreated) {
+                $translation->delete();
+            }
+
+            throw $exception;
         }
 
         $translation->forceFill([
             'source_hash' => $sourceHash,
             'source_text' => $sourceText,
             'target_locale' => $targetLocale,
-            'words' => $this->countWords($sourceText),
+            'words' => $words,
             'status' => 'pending',
             'last_error' => null,
             'batch_id' => $batchId ?? $translation->batch_id,
+            'quota_reservation_id' => $reservation->id,
         ]);
 
         if ($force) {
@@ -79,6 +99,7 @@ class PersistedTranslationService
         }
 
         $translation->save();
+        $translation->unsetRelation('quotaReservation');
 
         $this->queue($translation, $batchId ?? $translation->batch_id);
 
@@ -115,6 +136,8 @@ class PersistedTranslationService
             'last_error' => null,
         ])->save();
 
+        $this->quotaReservations->release($translation->quotaReservation);
+
         $translation->jobs()
             ->whereIn('status', ['queued', 'processing'])
             ->update(['status' => 'completed', 'finished_at' => now()]);
@@ -130,10 +153,20 @@ class PersistedTranslationService
             throw new RuntimeException('Only failed or completed translations can be retried.');
         }
 
+        if ($this->hasActiveJob($translation)) {
+            return $translation;
+        }
+
+        $this->quotaReservations->release($translation->quotaReservation);
+        $words = max(1, (int) $translation->words);
+        $reservation = $this->quotaReservations->reserve($shop, $words);
+
         $translation->forceFill([
             'status' => 'pending',
             'last_error' => null,
+            'quota_reservation_id' => $reservation->id,
         ])->save();
+        $translation->unsetRelation('quotaReservation');
 
         $this->queue($translation, $translation->batch_id);
 
@@ -153,16 +186,15 @@ class PersistedTranslationService
         abort_unless($translation->shop_id === $shop->id, 404);
     }
 
-    private function queue(EuroCrossTranslation $translation, ?string $batchId): void
+    private function hasActiveJob(EuroCrossTranslation $translation): bool
     {
-        $hasActiveJob = $translation->jobs()
+        return $translation->jobs()
             ->whereIn('status', ['queued', 'processing'])
             ->exists();
+    }
 
-        if ($hasActiveJob) {
-            return;
-        }
-
+    private function queue(EuroCrossTranslation $translation, ?string $batchId): void
+    {
         $job = $translation->jobs()->create([
             'shop_id' => $translation->shop_id,
             'batch_id' => $batchId,
@@ -170,7 +202,15 @@ class PersistedTranslationService
             'queued_at' => now(),
         ]);
 
-        ProcessPersistedTranslation::dispatch($translation->id, $job->id);
+        try {
+            ProcessPersistedTranslation::dispatch($translation->id, $job->id);
+        } catch (Throwable $exception) {
+            $job->markFailed($exception->getMessage());
+            $translation->markFailed($exception->getMessage());
+            $this->quotaReservations->release($translation->quotaReservation);
+
+            throw $exception;
+        }
     }
 
     private function hash(string $text, string $sourceLocale, string $targetLocale): string

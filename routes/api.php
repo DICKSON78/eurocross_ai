@@ -86,6 +86,8 @@ Route::middleware('eurocross.api')->group(function (): void {
         ->name('eurocross.translations.store');
     Route::post('/translations/bulk', [PersistedTranslationController::class, 'bulk'])
         ->name('eurocross.translations.bulk');
+    Route::get('/translations/summary', [PersistedTranslationController::class, 'summary'])
+        ->name('eurocross.translations.summary');
     Route::get('/translations/{translation}', [PersistedTranslationController::class, 'show'])
         ->name('eurocross.translations.show');
     Route::put('/translations/{translation}', [PersistedTranslationController::class, 'update'])

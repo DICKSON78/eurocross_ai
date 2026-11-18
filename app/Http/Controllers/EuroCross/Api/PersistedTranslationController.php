@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\EuroCross\Api;
 
+use App\Exceptions\QuotaExceededException;
 use App\Http\Controllers\Controller;
+use App\Models\EuroCrossQuotaReservation;
 use App\Models\EuroCrossSettings;
 use App\Models\EuroCrossTranslation;
 use App\Services\PersistedTranslationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 use RuntimeException;
 
@@ -59,6 +62,105 @@ class PersistedTranslationController extends Controller
         ]);
     }
 
+    public function summary(Request $request): JsonResponse
+    {
+        $shop = $this->shop($request);
+        $validated = $request->validate([
+            'days' => ['sometimes', 'integer', 'min:1', 'max:90'],
+        ]);
+        $days = (int) ($validated['days'] ?? 30);
+
+        $statusRows = EuroCrossTranslation::query()
+            ->forShop($shop->id)
+            ->selectRaw('status, COUNT(*) as total, COALESCE(SUM(words), 0) as words, COALESCE(SUM(retry_count), 0) as retries')
+            ->groupBy('status')
+            ->get()
+            ->keyBy('status');
+
+        $statuses = [];
+        foreach (self::STATUSES as $status) {
+            $row = $statusRows->get($status);
+            $statuses[$status] = [
+                'total' => (int) ($row->total ?? 0),
+                'words' => (int) ($row->words ?? 0),
+                'retries' => (int) ($row->retries ?? 0),
+            ];
+        }
+
+        $totals = EuroCrossTranslation::query()
+            ->forShop($shop->id)
+            ->selectRaw(
+                'COUNT(*) as translations, COALESCE(SUM(words), 0) as words, '
+                .'COALESCE(SUM(tokens), 0) as tokens, COALESCE(SUM(cost), 0) as cost, '
+                .'COALESCE(SUM(retry_count), 0) as retries, '
+                .'COALESCE(SUM(CASE WHEN manually_edited = 1 THEN 1 ELSE 0 END), 0) as manual_edits, '
+                .'COUNT(DISTINCT batch_id) as batches'
+            )
+            ->firstOrFail();
+
+        $recent = EuroCrossTranslation::query()
+            ->forShop($shop->id)
+            ->latest()
+            ->limit(10)
+            ->get(['id', 'source_type', 'source_id', 'field', 'target_locale', 'status', 'words', 'retry_count', 'manually_edited', 'created_at'])
+            ->map(static fn (EuroCrossTranslation $translation): array => [
+                'id' => $translation->id,
+                'source_type' => $translation->source_type,
+                'source_id' => $translation->source_id,
+                'field' => $translation->field,
+                'target_language' => $translation->target_locale,
+                'status' => $translation->status,
+                'words' => $translation->words,
+                'retries' => $translation->retry_count,
+                'manually_edited' => $translation->manually_edited,
+                'created_at' => $translation->created_at?->toIso8601String(),
+            ])
+            ->all();
+
+        $byLanguage = EuroCrossTranslation::query()
+            ->forShop($shop->id)
+            ->selectRaw('target_locale, COUNT(*) as total, COALESCE(SUM(words), 0) as words')
+            ->groupBy('target_locale')
+            ->orderByDesc('total')
+            ->limit(10)
+            ->get()
+            ->map(static fn (EuroCrossTranslation $translation): array => [
+                'language' => $translation->target_locale,
+                'total' => (int) $translation->total,
+                'words' => (int) $translation->words,
+            ])
+            ->all();
+
+        $since = now()->subDays($days - 1)->startOfDay();
+        $recentTotals = EuroCrossTranslation::query()
+            ->forShop($shop->id)
+            ->where('created_at', '>=', $since)
+            ->selectRaw('COUNT(*) as translations, COALESCE(SUM(words), 0) as words')
+            ->firstOrFail();
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'statuses' => $statuses,
+                'totals' => [
+                    'translations' => (int) $totals->translations,
+                    'words' => (int) $totals->words,
+                    'tokens' => (int) $totals->tokens,
+                    'cost' => (float) $totals->cost,
+                    'retries' => (int) $totals->retries,
+                    'manual_edits' => (int) $totals->manual_edits,
+                    'batches' => (int) $totals->batches,
+                    'recent_translations' => (int) $recentTotals->translations,
+                    'recent_words' => (int) $recentTotals->words,
+                ],
+                'quota' => $this->quota($shop),
+                'by_language' => $byLanguage,
+                'recent' => $recent,
+                'window_days' => $days,
+            ],
+        ]);
+    }
+
     public function show(Request $request, int $translation): JsonResponse
     {
         $shop = $this->shop($request);
@@ -75,14 +177,18 @@ class PersistedTranslationController extends Controller
         $shop = $this->shop($request);
         $validated = $request->validate($this->itemRules($shop, 'text'));
 
-        $record = $this->translations->translate($shop, [
-            'text' => (string) $validated['text'],
-            'source_type' => (string) ($validated['source_type'] ?? 'manual'),
-            'source_id' => (string) ($validated['source_id'] ?? '0'),
-            'field' => (string) ($validated['field'] ?? 'content'),
-            'source_locale' => (string) ($validated['source_lang'] ?? 'en'),
-            'target_locale' => (string) $validated['target_lang'],
-        ]);
+        try {
+            $record = $this->translations->translate($shop, [
+                'text' => (string) $validated['text'],
+                'source_type' => (string) ($validated['source_type'] ?? 'manual'),
+                'source_id' => (string) ($validated['source_id'] ?? '0'),
+                'field' => (string) ($validated['field'] ?? 'content'),
+                'source_locale' => (string) ($validated['source_lang'] ?? 'en'),
+                'target_locale' => (string) $validated['target_lang'],
+            ]);
+        } catch (QuotaExceededException $exception) {
+            return $this->quotaError($exception);
+        }
 
         return response()->json([
             'success' => true,
@@ -108,16 +214,20 @@ class PersistedTranslationController extends Controller
         $sourceLocale = (string) ($validated['source_lang'] ?? 'en');
         $targetLocale = (string) $validated['target_lang'];
 
-        $records = $this->translations->bulk(
-            $shop,
-            array_map(static function (array $item) use ($sourceLocale, $targetLocale): array {
-                return array_merge($item, [
-                    'source_locale' => $sourceLocale,
-                    'target_locale' => $targetLocale,
-                ]);
-            }, $items),
-            $sourceLocale,
-        );
+        try {
+            $records = $this->translations->bulk(
+                $shop,
+                array_map(static function (array $item) use ($sourceLocale, $targetLocale): array {
+                    return array_merge($item, [
+                        'source_locale' => $sourceLocale,
+                        'target_locale' => $targetLocale,
+                    ]);
+                }, $items),
+                $sourceLocale,
+            );
+        } catch (QuotaExceededException $exception) {
+            return $this->quotaError($exception);
+        }
 
         return response()->json([
             'success' => true,
@@ -152,6 +262,8 @@ class PersistedTranslationController extends Controller
 
         try {
             $record = $this->translations->retry($shop, $record);
+        } catch (QuotaExceededException $exception) {
+            return $this->quotaError($exception);
         } catch (RuntimeException $exception) {
             return response()->json([
                 'success' => false,
@@ -211,6 +323,45 @@ class PersistedTranslationController extends Controller
             'cost' => (float) $translation->cost,
             'batch_id' => $translation->batch_id,
             'job_status' => $translation->jobs()->latest()->value('status'),
+        ];
+    }
+
+    private function quotaError(QuotaExceededException $exception): JsonResponse
+    {
+        return response()->json([
+            'success' => false,
+            'error' => $exception->getMessage(),
+            'data' => $exception->context(),
+        ], 429);
+    }
+
+    /**
+     * @return array{limit: int, used: int, reserved: int, remaining: int}
+     */
+    private function quota(EuroCrossSettings $shop): array
+    {
+        $limit = $shop->planWordLimit();
+        $start = now()->startOfMonth();
+
+        if ($shop->words_reset_at instanceof Carbon && $shop->words_reset_at->greaterThan($start)) {
+            $start = $shop->words_reset_at->copy()->startOfDay();
+        }
+
+        $used = (int) $shop->translationUsage()
+            ->whereBetween('usage_date', [$start->toDateString(), now()->endOfMonth()->toDateString()])
+            ->sum('words_translated');
+
+        $reserved = (int) EuroCrossQuotaReservation::query()
+            ->forShop($shop->id)
+            ->active()
+            ->where('created_at', '>=', $start)
+            ->sum('words');
+
+        return [
+            'limit' => $limit,
+            'used' => $used,
+            'reserved' => $reserved,
+            'remaining' => $limit > 0 ? max(0, $limit - $used - $reserved) : 0,
         ];
     }
 
