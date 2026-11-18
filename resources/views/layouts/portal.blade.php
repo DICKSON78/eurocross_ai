@@ -26,6 +26,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#7C0E44">
 <title>@yield('title','Dashboard') — EuroCross</title>
+<link rel="icon" href="{{ asset('images/favicon.svg') }}" type="image/svg+xml">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 @fonts @vite(['resources/css/app.css','resources/js/portal.js'])
 </head>
@@ -61,7 +62,11 @@
             <div class="flex items-center gap-3">
                 <div x-data="{ open:false }" class="relative">
                     <button type="button" @click="open=!open" @click.outside="open=false" class="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-3 transition hover:bg-plum-900/5">
-                        <span class="grid h-9 w-9 place-items-center rounded-full border-2 border-rose-200 bg-ec-primary text-xs font-bold text-white">{{ strtoupper(substr($user->name,0,1)) }}</span>
+                        @if ($user->avatarUrl())
+                            <img src="{{ $user->avatarUrl() }}" alt="" class="h-9 w-9 rounded-full border-2 border-rose-200 object-cover">
+                        @else
+                            <span class="grid h-9 w-9 place-items-center rounded-full border-2 border-rose-200 bg-ec-primary text-xs font-bold text-white">{{ strtoupper(substr($user->name,0,1)) }}</span>
+                        @endif
                         <span class="hidden text-left leading-tight sm:block"><span class="block text-sm font-semibold text-plum-900">{{ $user->name }}</span><span class="block text-[11px] text-plum-900/40">{{ ucfirst($settings?->plan ?? 'starter') }} plan</span></span>
                         <i class="fa-solid fa-chevron-down text-[12px] text-plum-900/30" aria-hidden="true"></i>
                     </button>

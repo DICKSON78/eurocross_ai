@@ -56,9 +56,23 @@
             @endforeach
         </nav>
 
-        <div class="hidden items-center gap-3 lg:flex">
-            <a href="/dashboard" class="text-sm font-medium text-plum-900/65 hover:text-rose-500">Sign in</a>
-            <a href="{{ config('payment.gumroad.checkout_starter') }}" class="ec-action !min-h-10 !rounded-lg !px-5 !py-2">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
+        <div class="hidden items-center gap-3 lg:flex" data-header-actions>
+            @auth
+                @php $ecHeaderUser = auth()->user(); @endphp
+                <a href="{{ route('dashboard') }}" data-account-dashboard class="flex items-center gap-2.5 rounded-full py-1 pl-1 pr-3 transition hover:bg-plum-900/5" aria-label="Open dashboard for {{ $ecHeaderUser->name }}">
+                    @if ($ecHeaderUser->avatarUrl())
+                        <img src="{{ $ecHeaderUser->avatarUrl() }}" alt="" class="h-9 w-9 rounded-full border-2 border-rose-200 object-cover">
+                    @else
+                        <span class="grid h-9 w-9 place-items-center rounded-full border-2 border-rose-200 bg-ec-primary text-xs font-bold text-white">{{ strtoupper(substr($ecHeaderUser->name, 0, 1)) }}</span>
+                    @endif
+                    <span class="hidden max-w-32 truncate text-sm font-semibold text-plum-900 xl:block">{{ $ecHeaderUser->name }}</span>
+                    <span class="text-sm font-semibold text-plum-700">Dashboard</span>
+                    <i class="fa-solid fa-arrow-right text-xs text-plum-900/40" aria-hidden="true"></i>
+                </a>
+            @else
+                <a href="{{ route('login') }}" data-guest-sign-in class="text-sm font-medium text-plum-900/65 hover:text-rose-500">Sign in</a>
+                <a href="{{ config('payment.gumroad.checkout_starter') }}" data-guest-trial class="ec-action !min-h-10 !rounded-lg !px-5 !py-2">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
+            @endauth
         </div>
 
         <button type="button" data-ec-menu-open class="grid h-10 w-10 place-items-center rounded-lg border border-plum-900/10 text-plum-900 lg:hidden" aria-label="Open menu" aria-expanded="false">
@@ -81,8 +95,30 @@
                 </a>
             @endforeach
         </nav>
-        <a href="{{ config('payment.gumroad.checkout_starter') }}" class="ec-action mt-6 w-full">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
-        <a href="/dashboard" class="mt-4 block text-center text-sm font-medium text-plum-900/60">Sign in to dashboard</a>
+        @auth
+            @php $ecMenuUser = auth()->user(); @endphp
+            <div class="mt-6 rounded-2xl border border-plum-900/5 bg-white p-4" data-account-menu>
+                <div class="flex items-center gap-3">
+                    @if ($ecMenuUser->avatarUrl())
+                        <img src="{{ $ecMenuUser->avatarUrl() }}" alt="" class="h-10 w-10 rounded-full border-2 border-rose-200 object-cover">
+                    @else
+                        <span class="grid h-10 w-10 place-items-center rounded-full border-2 border-rose-200 bg-ec-primary text-sm font-bold text-white">{{ strtoupper(substr($ecMenuUser->name, 0, 1)) }}</span>
+                    @endif
+                    <div class="min-w-0">
+                        <p class="truncate text-sm font-semibold text-plum-900">{{ $ecMenuUser->name }}</p>
+                        <p class="text-xs text-plum-900/45">Signed in</p>
+                    </div>
+                </div>
+                <a href="{{ route('dashboard') }}" data-account-dashboard class="ec-action mt-4 w-full">Dashboard <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
+                <form method="POST" action="{{ route('logout') }}" class="mt-3">
+                    @csrf
+                    <button type="submit" class="w-full rounded-xl border border-plum-900/10 py-2.5 text-sm font-semibold text-plum-900/60 transition hover:bg-plum-900/5">Log out</button>
+                </form>
+            </div>
+        @else
+            <a href="{{ config('payment.gumroad.checkout_starter') }}" data-guest-trial class="ec-action mt-6 w-full">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
+            <a href="{{ route('login') }}" data-guest-sign-in class="mt-4 block text-center text-sm font-medium text-plum-900/60">Sign in to dashboard</a>
+        @endauth
     </div>
 </div>
 
@@ -152,6 +188,7 @@
         <button type="button" data-auth-popup-google class="mt-7 flex w-full items-center justify-center gap-3 rounded-xl border border-plum-900/10 bg-white px-5 py-3 text-sm font-semibold text-plum-900 transition hover:bg-plum-900/5">
             @include('auth.partials.google-icon') <span data-auth-popup-google-label>Continue with Google</span>
         </button>
+        <p data-auth-popup-error hidden class="mt-3 text-sm leading-6 text-rose-600" role="alert" aria-live="polite"></p>
         <div class="mt-5 flex items-center justify-between text-xs text-plum-900/50">
             <a href="{{ route('login') }}" class="font-semibold text-plum-700 hover:text-rose-500">Sign in</a>
             <a href="{{ route('register') }}" class="font-semibold text-plum-700 hover:text-rose-500">Create with email</a>

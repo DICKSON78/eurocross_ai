@@ -119,14 +119,18 @@ class AuthController extends Controller
         }
 
         $email = mb_strtolower(trim((string) $account['email']));
+        $avatar = $account['photoUrl'] ?? null;
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
         if (! $user instanceof User) {
             $user = User::create([
                 'name' => $account['displayName'] ?? explode('@', $email)[0],
                 'email' => $email,
+                'avatar' => is_string($avatar) ? $avatar : null,
                 'password' => Hash::make(Str::random(32)),
             ]);
+        } elseif ($user->avatar === null && is_string($avatar) && $avatar !== '') {
+            $user->update(['avatar' => $avatar]);
         }
 
         $this->ensureSettings($user);
@@ -161,14 +165,18 @@ class AuthController extends Controller
         }
 
         $email = mb_strtolower(trim((string) $googleUser->getEmail()));
+        $avatar = $googleUser->getAvatar();
         $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
         if (! $user instanceof User) {
             $user = User::create([
                 'name' => $googleUser->getName() ?: explode('@', $email)[0],
                 'email' => $email,
+                'avatar' => is_string($avatar) && $avatar !== '' ? $avatar : null,
                 'password' => Hash::make(Str::random(32)),
             ]);
+        } elseif ($user->avatar === null && is_string($avatar) && $avatar !== '') {
+            $user->update(['avatar' => $avatar]);
         }
 
         $this->ensureSettings($user);

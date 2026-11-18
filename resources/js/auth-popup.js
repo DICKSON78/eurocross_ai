@@ -1,8 +1,10 @@
-import { createGoogleAuth } from './google-auth';
+import { createGoogleAuth, showGoogleError } from './google-auth';
 
 const STORAGE_KEY = 'ecAuthPopupSeen';
 const popup = document.querySelector('[data-auth-popup]');
-const googleAuth = createGoogleAuth();
+const googleAuth = createGoogleAuth({
+    onError: (error) => showGoogleError(error, popup?.querySelector('[data-auth-popup-error]')),
+});
 
 let oneTapDisplayed = false;
 let previousOverflow = '';
@@ -26,7 +28,7 @@ function wasSeen() {
 }
 
 function openPopup() {
-    if (!popup || !popup.classList.contains('hidden')) {
+    if (! popup || ! popup.classList.contains('hidden')) {
         return;
     }
 
@@ -39,7 +41,7 @@ function openPopup() {
 }
 
 function closePopup() {
-    if (!popup) {
+    if (! popup) {
         return;
     }
 
@@ -51,21 +53,25 @@ function closePopup() {
 async function startGoogleSignIn() {
     const button = popup?.querySelector('[data-auth-popup-google]');
     const label = popup?.querySelector('[data-auth-popup-google-label]');
+    const error = popup?.querySelector('[data-auth-popup-error]');
+
+    if (error) {
+        error.hidden = true;
+        error.textContent = '';
+    }
 
     try {
         if (button) button.disabled = true;
         if (label) label.textContent = 'Connecting to Google…';
-        await googleAuth.signInWithRedirectGoogle();
+        await googleAuth.signInWithGoogle();
     } catch (error) {
         if (button) button.disabled = false;
         if (label) label.textContent = 'Continue with Google';
-        console.error('[EuroCross] Google sign-in failed:', error);
-        window.alert(error.message ?? 'Google sign-in failed. Please try again.');
     }
 }
 
 async function handleOneTapCredential(credential) {
-    if (!credential) {
+    if (! credential) {
         return;
     }
 
@@ -74,7 +80,7 @@ async function handleOneTapCredential(credential) {
     try {
         await googleAuth.signInWithGoogleCredential(credential);
     } catch (error) {
-        console.error('[EuroCross] Google One Tap sign-in failed:', error);
+        showGoogleError(error, popup?.querySelector('[data-auth-popup-error]'));
         openPopup();
     }
 }
@@ -82,7 +88,7 @@ async function handleOneTapCredential(credential) {
 function startOneTap() {
     const clientId = document.body.dataset.googleClientId;
 
-    if (!clientId || !window.google?.accounts?.id) {
+    if (! clientId || ! window.google?.accounts?.id) {
         return false;
     }
 
@@ -114,7 +120,7 @@ function startOneTap() {
 }
 
 function boot() {
-    if (!popup || wasSeen()) {
+    if (! popup || wasSeen()) {
         return;
     }
 
@@ -133,7 +139,7 @@ function boot() {
     const oneTapStarted = startOneTap();
 
     window.setTimeout(() => {
-        if (!oneTapStarted || !oneTapDisplayed) {
+        if (! oneTapStarted || ! oneTapDisplayed) {
             openPopup();
         }
     }, 1200);

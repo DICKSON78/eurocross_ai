@@ -36,6 +36,7 @@
     <button type="button" data-google-button onclick="ecGoogleSignIn()" class="flex w-full items-center justify-center gap-3 rounded-xl border border-plum-900/10 bg-white px-5 py-2.5 text-sm font-semibold text-plum-900 transition hover:bg-plum-900/5">
         @include('auth.partials.google-icon') <span data-google-label>Continue with Google</span>
     </button>
+    <p data-google-error hidden class="mt-3 text-sm leading-6 text-rose-600" role="alert" aria-live="polite"></p>
 </form>
 @endsection
 

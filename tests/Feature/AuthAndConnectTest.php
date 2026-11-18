@@ -53,6 +53,7 @@ class AuthAndConnectTest extends TestCase
                 'users' => [[
                     'email' => 'Buyer@Example.com',
                     'displayName' => 'Buyer',
+                    'photoUrl' => 'https://lh3.googleusercontent.com/buyer.png',
                 ]],
             ]),
         ]);
@@ -66,8 +67,45 @@ class AuthAndConnectTest extends TestCase
                 && data_get($request->data(), 'idToken') === 'google-token';
         });
 
-        $this->assertDatabaseHas('users', ['email' => 'buyer@example.com']);
+        $this->assertDatabaseHas('users', [
+            'email' => 'buyer@example.com',
+            'avatar' => 'https://lh3.googleusercontent.com/buyer.png',
+        ]);
         $this->assertAuthenticated();
+    }
+
+    public function test_firebase_login_backfills_avatar_for_existing_user(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'buyer@example.com',
+            'avatar' => null,
+        ]);
+
+        Http::fake([
+            'identitytoolkit.googleapis.com/*' => Http::response([
+                'users' => [[
+                    'email' => 'buyer@example.com',
+                    'photoUrl' => 'https://lh3.googleusercontent.com/backfilled.png',
+                ]],
+            ]),
+        ]);
+
+        $this->postJson('/auth/firebase', ['id_token' => 'google-token'])
+            ->assertOk()
+            ->assertJson(['success' => true]);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $user->id,
+            'avatar' => 'https://lh3.googleusercontent.com/backfilled.png',
+        ]);
+        $this->assertAuthenticatedAs($user);
+    }
+
+    public function test_avatar_url_rejects_unsafe_values(): void
+    {
+        $user = User::factory()->create(['avatar' => 'javascript:alert(1)']);
+
+        $this->assertNull($user->avatarUrl());
     }
 
     public function test_auth_pages_do_not_render_onboarding_or_old_dashboard_promos(): void
@@ -75,6 +113,8 @@ class AuthAndConnectTest extends TestCase
         $this->get(route('login'))
             ->assertOk()
             ->assertSee('Continue with Google')
+            ->assertSee('data-google-error', false)
+            ->assertSee('href="'.asset('images/favicon.svg').'"', false)
             ->assertSee('New here?')
             ->assertSee('Create an account')
             ->assertSee('Ready when you are')
@@ -105,9 +145,37 @@ class AuthAndConnectTest extends TestCase
         $this->get('/')
             ->assertOk()
             ->assertSee('data-auth-popup', false)
+            ->assertSee('data-auth-popup-error', false)
+            ->assertSee('data-guest-sign-in', false)
+            ->assertSee('data-guest-trial', false)
             ->assertSee('data-firebase-api-key', false)
             ->assertSee('Continue as a EuroCross user')
             ->assertSee('Continue with Google');
+    }
+
+    public function test_home_shows_avatar_and_dashboard_for_authenticated_users(): void
+    {
+        $avatar = 'https://lh3.googleusercontent.com/avatar.png';
+        $user = User::factory()->create([
+            'name' => 'Amazon Buyer',
+            'avatar' => $avatar,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/')
+            ->assertOk()
+            ->assertSee('data-account-dashboard', false)
+            ->assertSee('href="'.route('dashboard').'"', false)
+            ->assertSee('src="'.$avatar.'"', false)
+            ->assertSee('Dashboard')
+            ->assertDontSee('data-guest-sign-in', false)
+            ->assertDontSee('data-guest-trial', false)
+            ->assertDontSee('data-auth-popup', false);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('src="'.$avatar.'"', false);
     }
 
     public function test_home_does_not_render_google_signin_popup_for_authenticated_users(): void

@@ -5,6 +5,7 @@
 <meta name="theme-color" content="#7C0E44">
 <meta name="csrf-token" content="{{ csrf_token() }}">
 <title>@yield('title', 'Sign in') — EuroCross</title>
+<link rel="icon" href="{{ asset('images/favicon.svg') }}" type="image/svg+xml">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 @fonts @vite(['resources/css/app.css','resources/js/auth.js'])
 </head>
