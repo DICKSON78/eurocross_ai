@@ -28,7 +28,7 @@ class ClientDashboardController extends Controller
             'translation' => $this->translationData($settings),
             'vat' => $this->vatData($settings),
             'billing' => $this->billingData($settings),
-            'keys' => ['keys' => $settings->apiKeys()->where('provider', '!=', 'eurocross')->latest()->get()],
+            'keys' => ['keys' => $settings->apiKeys()->latest()->get()],
             'chatbot' => ['messages' => $this->chatMessages($settings)],
             'settings' => ['vatSettings' => EuroCrossVatSettings::firstOrCreate(['shop_id' => $settings->id])],
             default => $this->overviewData($settings),

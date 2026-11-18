@@ -15,16 +15,7 @@
         'growth' => ['name' => 'Growth', 'key' => 'growth', 'popular' => true],
         'scale' => ['name' => 'Scale', 'key' => 'scale', 'popular' => false],
     ];
-    $checkoutUrl = function (string $key): string {
-        $url = (string) config("payment.gumroad.checkout_{$key}");
-
-        if (auth()->check()) {
-            $separator = str_contains($url, '?') ? '&' : '?';
-            $url .= $separator.'email='.rawurlencode(auth()->user()->email).'&wanted=true';
-        }
-
-        return $url;
-    };
+    $checkoutUrl = fn (string $key): string => route('billing.checkout', $key);
 @endphp
 
 <section class="relative overflow-hidden pt-16 pb-20 bg-cream sm:pt-24">
@@ -36,7 +27,12 @@
         @auth
             <p class="mt-4 inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-plum-700">
                 <i class="fa-solid fa-circle-info text-rose-500" aria-hidden="true"></i>
-                Use the same email as your EuroCross account at checkout.
+                Checkout uses your EuroCross account email so your subscription activates automatically.
+            </p>
+        @else
+            <p class="mt-4 inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-plum-700">
+                <i class="fa-solid fa-circle-info text-rose-500" aria-hidden="true"></i>
+                Create an account or sign in before payment so we can activate your API key.
             </p>
         @endauth
     </div>
@@ -72,8 +68,12 @@
     <div class="ec-wrap">
         <img src="{{ asset('images/illustrations/pricing-page.svg') }}" alt="Pricing illustration" class="mx-auto mb-6 h-36 object-contain">
         <h2 class="ec-display text-3xl">Not sure yet?</h2>
-        <p class="ec-lead mx-auto mt-3 max-w-lg">Try EuroCross free for 7 days and see the difference for yourself.</p>
-        <a href="{{ $checkoutUrl('starter') }}" class="ec-action mt-6">Start free trial</a>
+        <p class="ec-lead mx-auto mt-3 max-w-lg">Create your EuroCross account to start your 7-day free trial, connect the plugin, and upgrade when you're ready.</p>
+        @guest
+            <a href="{{ route('register') }}" class="ec-action mt-6">Create account</a>
+        @else
+            <a href="{{ route('dashboard') }}" class="ec-action mt-6">Go to dashboard</a>
+        @endguest
     </div>
 </section>
 
@@ -101,7 +101,11 @@
 <section class="bg-plum-950 py-20 text-white">
     <div class="ec-wrap text-center">
         <h2 class="ec-display text-3xl sm:text-4xl">Ready to go global?</h2>
-        <a href="{{ $checkoutUrl('growth') }}" class="ec-action !bg-rose-500 mt-8">Start free trial</a>
+        @guest
+            <a href="{{ route('register') }}" class="ec-action !bg-rose-500 mt-8">Create account</a>
+        @else
+            <a href="{{ route('billing.checkout', 'growth') }}" class="ec-action !bg-rose-500 mt-8">Subscribe to Growth</a>
+        @endguest
     </div>
 </section>
 
@@ -112,7 +116,7 @@ document.addEventListener('click', function (event) {
     var link = event.target.closest('a[data-plan]');
     if (!link) return;
     event.preventDefault();
-    window.location.href = '/login?intended=' + encodeURIComponent('/pricing?subscribe=' + link.dataset.plan);
+    window.location.href = '/login?intended=' + encodeURIComponent(link.getAttribute('href'));
 });
 </script>
 @endguest

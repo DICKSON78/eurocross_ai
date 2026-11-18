@@ -405,8 +405,31 @@ class GumroadBillingTest extends TestCase
 
         $html = $response->getContent();
         $this->assertSame(1, substr_count($html, 'gumroad.com/js/gumroad.js'));
-        $this->assertStringContainsString('https://gumroad.test/l/starter', $html);
-        $this->assertStringContainsString('https://gumroad.test/l/growth', $html);
-        $this->assertStringContainsString('https://gumroad.test/l/scale', $html);
+        $this->assertStringContainsString(route('billing.checkout', 'starter'), $html);
+        $this->assertStringContainsString(route('billing.checkout', 'growth'), $html);
+        $this->assertStringContainsString(route('billing.checkout', 'scale'), $html);
+        $this->assertStringNotContainsString('https://gumroad.test/l/starter', $html);
+        $this->assertStringNotContainsString('https://gumroad.test/l/growth', $html);
+        $this->assertStringNotContainsString('https://gumroad.test/l/scale', $html);
+    }
+
+    public function test_checkout_routes_require_authentication(): void
+    {
+        $this->get(route('checkout.starter'))->assertRedirect(route('login'));
+        $this->get(route('checkout.growth'))->assertRedirect(route('login'));
+        $this->get(route('checkout.scale'))->assertRedirect(route('login'));
+        $this->get(route('billing.checkout', 'starter'))->assertRedirect(route('login'));
+    }
+
+    public function test_authenticated_checkout_redirects_to_configured_gumroad_url(): void
+    {
+        $user = User::factory()->create(['email' => 'buyer@example.com']);
+
+        $response = $this->actingAs($user)->get(route('billing.checkout', 'starter'));
+
+        $response->assertRedirect();
+        $location = (string) $response->headers->get('Location');
+        $this->assertStringStartsWith('https://gumroad.test/l/starter', $location);
+        $this->assertStringContainsString('email=buyer%40example.com', $location);
     }
 }

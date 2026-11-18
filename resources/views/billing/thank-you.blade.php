@@ -20,9 +20,9 @@
 
     <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
         <a href="{{ route('dashboard') }}" class="ec-action">Go to dashboard</a>
-        <a href="{{ route('home') }}" class="ec-action-light">Back to website</a>
+        <a href="{{ route('login') }}" class="ec-action-light">Sign in</a>
     </div>
-    <p class="mt-6 text-xs text-plum-900/40">Payment processed securely by Gumroad.</p>
+    <p class="mt-6 text-xs text-plum-900/40">Payment processed securely by Gumroad. After activation, open your dashboard to copy your API key for WordPress.</p>
 </div>
 </div>
 <script>
@@ -34,18 +34,28 @@
         attempts += 1;
         try {
             const response = await fetch('{{ route('billing.status') }}', {
-                headers: { Accept: 'application/json' },
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
+                redirect: 'manual'
             });
+
+            if (response.status === 401 || response.status === 302 || response.status === 419 || response.type === 'opaqueredirect') {
+                text.innerHTML = 'Payment received. Please <a href="{{ route('login') }}" class="underline font-semibold">sign in</a> with the account you used at checkout to confirm activation and copy your API key.';
+                return;
+            }
 
             if (response.ok) {
                 const data = await response.json();
-                text.textContent = 'Plan: ' + data.plan + ' — ' + data.status;
+                const access = data.access || {};
+                const status = access.status || data.status || 'inactive';
+                text.textContent = 'Plan: ' + (data.plan || 'starter') + ' — ' + status;
 
-                if (data.status === 'active' || data.access?.allowed) {
-                    window.setTimeout(() => window.location.reload(), 1200);
+                if (data.has_access || access.allowed || status === 'active' || status === 'trial' || status === 'trialing') {
+                    window.setTimeout(() => window.location.replace('{{ route('dashboard.module', 'keys') }}'), 1200);
                     return;
                 }
+            } else {
+                text.textContent = 'Still waiting for confirmation…';
             }
         } catch (error) {
             text.textContent = 'Still waiting for confirmation…';
@@ -54,7 +64,7 @@
         if (attempts < 20) {
             window.setTimeout(check, 5000);
         } else {
-            text.textContent = 'Still pending. Please check your dashboard in a moment.';
+            text.textContent = 'Still pending. Sign in to your dashboard to check activation and get your API key.';
         }
     }
 

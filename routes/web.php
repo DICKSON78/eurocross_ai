@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BillingController;
 use App\Http\Controllers\ClientDashboardController;
 use App\Http\Controllers\ConnectController;
 use Illuminate\Support\Facades\Route;
@@ -12,10 +13,6 @@ Route::view('/integrations', 'integrations')->name('integrations');
 Route::view('/about', 'about')->name('about');
 Route::view('/faq', 'faq')->name('faq');
 Route::view('/contact', 'contact')->name('contact');
-
-Route::redirect('/starter', config('payment.gumroad.checkout_starter'))->name('checkout.starter');
-Route::redirect('/growth', config('payment.gumroad.checkout_growth'))->name('checkout.growth');
-Route::redirect('/scale', config('payment.gumroad.checkout_scale'))->name('checkout.scale');
 
 Route::view('/billing/thank-you', 'billing.thank-you')->name('billing.thank-you');
 
@@ -31,6 +28,13 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 Route::get('/connect/start', [ConnectController::class, 'start'])->name('connect.start');
 
 Route::middleware('auth')->group(function (): void {
+    Route::get('/billing/checkout/{plan}', [BillingController::class, 'checkout'])
+        ->whereIn('plan', ['starter', 'growth', 'scale'])
+        ->name('billing.checkout');
+    Route::get('/starter', [BillingController::class, 'checkout'])->defaults('plan', 'starter')->name('checkout.starter');
+    Route::get('/growth', [BillingController::class, 'checkout'])->defaults('plan', 'growth')->name('checkout.growth');
+    Route::get('/scale', [BillingController::class, 'checkout'])->defaults('plan', 'scale')->name('checkout.scale');
+
     Route::get('/connect/confirm', [ConnectController::class, 'confirm'])->name('connect.confirm');
     Route::post('/connect/approve', [ConnectController::class, 'approve'])
         ->middleware('throttle:10,1')

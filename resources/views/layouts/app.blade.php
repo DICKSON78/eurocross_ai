@@ -71,7 +71,7 @@
                 </a>
             @else
                 <a href="{{ route('login') }}" data-guest-sign-in class="text-sm font-medium text-plum-900/65 hover:text-rose-500">Sign in</a>
-                <a href="{{ config('payment.gumroad.checkout_starter') }}" data-guest-trial class="ec-action !min-h-10 !rounded-lg !px-5 !py-2">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
+                <a href="{{ route('register') }}" data-guest-trial class="ec-action !min-h-10 !rounded-lg !px-5 !py-2">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
             @endauth
         </div>
 
@@ -116,7 +116,7 @@
                 </form>
             </div>
         @else
-            <a href="{{ config('payment.gumroad.checkout_starter') }}" data-guest-trial class="ec-action mt-6 w-full">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
+            <a href="{{ route('register') }}" data-guest-trial class="ec-action mt-6 w-full">Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i></a>
             <a href="{{ route('login') }}" data-guest-sign-in class="mt-4 block text-center text-sm font-medium text-plum-900/60">Sign in to dashboard</a>
         @endauth
     </div>
@@ -165,7 +165,7 @@
                 <h2 class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-400">Say hello</h2>
                 <ul class="mt-5 space-y-3 text-sm text-white/60">
                     <li><a href="mailto:hello@eurocross-ai.kadetech.online" class="hover:text-white">hello@eurocross-ai.kadetech.online</a></li>
-                    <li><a href="{{ config('payment.gumroad.checkout_starter') }}" class="text-rose-400 hover:text-rose-300">Start free trial →</a></li>
+                    <li><a href="{{ route('register') }}" class="text-rose-400 hover:text-rose-300">Start free trial →</a></li>
                 </ul>
             </div>
         </div>
