@@ -120,6 +120,23 @@ php artisan queue:work
 
 Gumroad's ping-verification and resource-subscription API docs could not be fetched from this environment. The webhook verifier and webhook-registration command are implemented from the provided specification plus the commonly used HMAC convention; verify them against Gumroad's current docs before relying on them in production.
 
+## Persisted translation layer (P1)
+
+Persistent per-language translations are stored in `eurocross_translations`, with queued work tracked in `eurocross_translation_jobs`. The tables are additive: existing synchronous `/eurocross/translate` and `/eurocross/translate/batch` endpoints are unchanged.
+
+Authenticated API routes:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/eurocross/translations` | List translations with optional `status`, `target_lang`, `source_type`, and `per_page` filters. |
+| `POST` | `/eurocross/translations` | Queue a single persisted translation. |
+| `POST` | `/eurocross/translations/bulk` | Queue up to 100 translations under one `batch_id`. |
+| `GET` | `/eurocross/translations/{translation}` | Inspect one translation and its latest job status. |
+| `PUT` | `/eurocross/translations/{translation}` | Save a manual translation; this is never overwritten by a queued job. |
+| `POST` | `/eurocross/translations/{translation}/retry` | Retry a failed or completed translation. |
+
+Deduplication uses a unique key of shop, source type, source ID, field, source locale, and target locale. Jobs are unique per translation, use three attempts with backoff, and mark both the translation and job as `failed` when all attempts are exhausted. Manual edits set `manually_edited = true` and short-circuit future provider calls.
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.

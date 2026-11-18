@@ -3,6 +3,7 @@
 use App\Http\Controllers\ConnectController;
 use App\Http\Controllers\EuroCross\Api\AccountController;
 use App\Http\Controllers\EuroCross\Api\ApiKeyController;
+use App\Http\Controllers\EuroCross\Api\PersistedTranslationController;
 use App\Http\Controllers\EuroCross\Api\TranslationController;
 use App\Http\Controllers\EuroCross\Api\VatController;
 use App\Http\Controllers\EuroCross\ChatbotController;
@@ -78,6 +79,19 @@ Route::middleware('eurocross.api')->group(function (): void {
         ->name('eurocross.translate');
     Route::post('/translate/batch', [TranslationController::class, 'translateBatch'])
         ->name('eurocross.translate.batch');
+
+    Route::get('/translations', [PersistedTranslationController::class, 'index'])
+        ->name('eurocross.translations.index');
+    Route::post('/translations', [PersistedTranslationController::class, 'store'])
+        ->name('eurocross.translations.store');
+    Route::post('/translations/bulk', [PersistedTranslationController::class, 'bulk'])
+        ->name('eurocross.translations.bulk');
+    Route::get('/translations/{translation}', [PersistedTranslationController::class, 'show'])
+        ->name('eurocross.translations.show');
+    Route::put('/translations/{translation}', [PersistedTranslationController::class, 'update'])
+        ->name('eurocross.translations.update');
+    Route::post('/translations/{translation}/retry', [PersistedTranslationController::class, 'retry'])
+        ->name('eurocross.translations.retry');
 
     Route::get('/vat/config', [VatController::class, 'config'])
         ->name('eurocross.vat.config');

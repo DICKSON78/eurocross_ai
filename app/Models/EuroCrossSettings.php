@@ -80,6 +80,16 @@ class EuroCrossSettings extends Model
         return $this->hasMany(EuroCrossTranslationUsage::class, 'shop_id');
     }
 
+    public function translations(): HasMany
+    {
+        return $this->hasMany(EuroCrossTranslation::class, 'shop_id');
+    }
+
+    public function translationJobs(): HasMany
+    {
+        return $this->hasMany(EuroCrossTranslationJob::class, 'shop_id');
+    }
+
     public function transactions(): HasMany
     {
         return $this->hasMany(EuroCrossTransaction::class, 'shop_id');
