@@ -243,7 +243,7 @@ class AuthAndConnectTest extends TestCase
         $this->assertNotSame('', $token);
         $response->assertJsonPath('data.plan', 'starter')
             ->assertJsonPath('data.allowed_languages.0.code', 'en')
-            ->assertJsonCount(3, 'data.allowed_languages');
+            ->assertJsonCount(10, 'data.allowed_languages');
 
         $this->assertDatabaseHas('eurocross_api_keys', [
             'provider' => 'eurocross',

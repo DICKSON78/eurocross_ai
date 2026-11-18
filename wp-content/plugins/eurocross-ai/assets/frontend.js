@@ -107,49 +107,133 @@
 	}
 
 	function switchLocale(code) {
-		if (!isValidLocale(code) || code === getLocale()) {
+		if (!isValidLocale(code)) {
 			return Promise.resolve(false);
 		}
 
-		persistLocale(code);
+		var target = String(code || '').toLowerCase().trim();
+		if (target === getLocale()) {
+			return Promise.resolve(false);
+		}
+
+		persistLocale(target);
+
+		var url = window.location.href;
+		try {
+			var parsed = new URL(url, window.location.origin);
+			parsed.searchParams.set('eurocross_lang', target);
+			parsed.searchParams.delete('lang');
+			url = parsed.toString();
+		} catch (e) {
+			var separator = url.indexOf('?') === -1 ? '?' : '&';
+			url = url.replace(/([?&])(?:eurocross_lang|lang)=[^&#]*/g, '').replace(/[?&]$/, '');
+			separator = url.indexOf('?') === -1 ? '?' : '&';
+			url += separator + 'eurocross_lang=' + encodeURIComponent(target);
+		}
 
 		if (!config.canEdit) {
-			window.location.reload();
+			window.location.assign(url);
 			return Promise.resolve(true);
 		}
 
-		return apiRequest('locale', { locale: code }).then(function () {
-			window.location.reload();
+		return apiRequest('locale', { locale: target }).then(function () {
+			window.location.assign(url);
 			return true;
 		}).catch(function () {
-			window.location.reload();
+			window.location.assign(url);
 			return true;
 		});
 	}
 
 	function setupLanguageSwitchers() {
-		var selectors = document.querySelectorAll('[data-eurocross-language-switcher]');
 		var current = getLocale();
 
+		var selectors = document.querySelectorAll('select[data-eurocross-language-switcher]');
 		Array.prototype.forEach.call(selectors, function (select) {
-			if (select.tagName !== 'SELECT') {
-				return;
-			}
-
 			var hasCurrent = false;
 			Array.prototype.forEach.call(select.options, function (option) {
 				if (option.value === current) {
 					hasCurrent = true;
 				}
 			});
-
 			if (hasCurrent) {
 				select.value = current;
 			}
-
 			select.setAttribute('aria-label', text('language', 'Language'));
 			select.addEventListener('change', function () {
 				switchLocale(select.value);
+			});
+		});
+
+		var dropdowns = document.querySelectorAll('[data-eurocross-language-dropdown]');
+		Array.prototype.forEach.call(dropdowns, function (dropdown) {
+			var toggle = dropdown.querySelector('[data-eurocross-language-toggle]');
+			var menu = dropdown.querySelector('[data-eurocross-language-menu]');
+			var options = dropdown.querySelectorAll('[data-eurocross-language-option]');
+			var currentLabel = dropdown.querySelector('[data-eurocross-language-current]');
+			if (!toggle || !menu) {
+				return;
+			}
+
+			function closeMenu() {
+				menu.hidden = true;
+				toggle.setAttribute('aria-expanded', 'false');
+				dropdown.classList.remove('is-open');
+			}
+
+			function openMenu() {
+				menu.hidden = false;
+				toggle.setAttribute('aria-expanded', 'true');
+				dropdown.classList.add('is-open');
+			}
+
+			function syncSelection(code) {
+				Array.prototype.forEach.call(options, function (option) {
+					var active = option.getAttribute('data-locale') === code;
+					option.classList.toggle('is-active', active);
+					var item = option.closest('[role="option"]');
+					if (item) {
+						item.setAttribute('aria-selected', active ? 'true' : 'false');
+					}
+					if (active && currentLabel) {
+						currentLabel.textContent = option.textContent;
+					}
+				});
+			}
+
+			syncSelection(current);
+
+			toggle.addEventListener('click', function (event) {
+				event.preventDefault();
+				event.stopPropagation();
+				if (dropdown.classList.contains('is-open')) {
+					closeMenu();
+				} else {
+					openMenu();
+				}
+			});
+
+			Array.prototype.forEach.call(options, function (option) {
+				option.addEventListener('click', function (event) {
+					event.preventDefault();
+					var locale = option.getAttribute('data-locale') || '';
+					syncSelection(locale);
+					closeMenu();
+					switchLocale(locale);
+				});
+			});
+
+			document.addEventListener('click', function (event) {
+				if (!dropdown.contains(event.target)) {
+					closeMenu();
+				}
+			});
+
+			dropdown.addEventListener('keydown', function (event) {
+				if (event.key === 'Escape') {
+					closeMenu();
+					toggle.focus();
+				}
 			});
 		});
 	}
@@ -217,12 +301,21 @@
 		});
 	}
 
-	function appendChatMessage(container, author, message) {
-		var item = document.createElement('p');
-		var label = document.createElement('strong');
-		label.textContent = author + ': ';
-		item.appendChild(label);
-		item.appendChild(document.createTextNode(message));
+	function appendChatMessage(container, author, message, role) {
+		var kind = role || (author === text('you', 'You') ? 'user' : 'assistant');
+		var item = document.createElement('div');
+		item.className = 'eurocross-chatbot-message is-' + kind;
+		var bubble = document.createElement('div');
+		bubble.className = 'eurocross-chatbot-bubble';
+		var label = document.createElement('span');
+		label.className = 'eurocross-chatbot-author';
+		label.textContent = author;
+		bubble.appendChild(label);
+		var body = document.createElement('span');
+		body.className = 'eurocross-chatbot-body';
+		body.textContent = String(message || '');
+		bubble.appendChild(body);
+		item.appendChild(bubble);
 		container.appendChild(item);
 		container.scrollTop = container.scrollHeight;
 	}
@@ -239,6 +332,19 @@
 			var status = widget.querySelector('.eurocross-chatbot-status');
 			var button = widget.querySelector('button[type="submit"]');
 			var input = widget.querySelector('textarea[name="message"]');
+			var toggles = widget.querySelectorAll('[data-eurocross-chatbot-toggle]');
+
+			Array.prototype.forEach.call(toggles, function (toggle) {
+				toggle.addEventListener('click', function () {
+					var isOpen = widget.classList.toggle('is-open');
+					Array.prototype.forEach.call(toggles, function (btn) {
+						btn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+					});
+					if (isOpen && input) {
+						input.focus();
+					}
+				});
+			});
 
 			if (!form || !messages || !input) {
 				return;
@@ -255,7 +361,7 @@
 					return;
 				}
 
-				appendChatMessage(messages, text('you', 'You'), message);
+				appendChatMessage(messages, text('you', 'You'), message, 'user');
 				conversationHistory.push({ role: 'user', message: message });
 				input.value = '';
 				input.disabled = true;
@@ -274,7 +380,7 @@
 				}).then(function (response) {
 					var data = response && response.data ? response.data : {};
 					var reply = String(data.reply || '');
-					appendChatMessage(messages, text('assistant', 'Assistant'), reply);
+					appendChatMessage(messages, text('assistant', 'Assistant'), reply, 'assistant');
 					conversationHistory.push({ role: 'assistant', message: reply });
 					setStatus(status, '', false);
 				}).catch(function (error) {
@@ -359,7 +465,82 @@
 		});
 	}
 
+	function setupNavLanguageDropdown() {
+		if (!Array.isArray(config.languages) || config.languages.length === 0) {
+			return;
+		}
+
+		var navLinks = document.querySelectorAll('.wp-block-navigation a, nav a');
+		var target = null;
+		Array.prototype.forEach.call(navLinks, function (link) {
+			if (target) {
+				return;
+			}
+			var label = (link.textContent || '').toLowerCase().trim();
+			var href = (link.getAttribute('href') || '').toLowerCase();
+			if (label.indexOf('language') !== -1 || href.indexOf('language-chat') !== -1) {
+				target = link;
+			}
+		});
+
+		if (!target || target.closest('[data-eurocross-switcher-root]')) {
+			return;
+		}
+
+		var parent = target.closest('li') || target.parentElement;
+		if (!parent) {
+			return;
+		}
+
+		var current = getLocale();
+		var currentName = text('language', 'Language');
+		config.languages.forEach(function (language) {
+			if (language && language.code === current) {
+				currentName = language.native_name || language.name || currentName;
+			}
+		});
+
+		var root = document.createElement('div');
+		root.className = 'eurocross-language-switcher eurocross-nav-language-switcher';
+		root.setAttribute('data-eurocross-switcher-root', '');
+		root.innerHTML = '' +
+			'<div class="eurocross-language-dropdown" data-eurocross-language-dropdown>' +
+				'<button type="button" class="eurocross-language-toggle eurocross-nav-language-toggle" data-eurocross-language-toggle aria-haspopup="listbox" aria-expanded="false">' +
+					'<span class="eurocross-language-toggle-label" data-eurocross-language-current></span>' +
+					'<span class="eurocross-language-caret" aria-hidden="true"></span>' +
+				'</button>' +
+				'<ul class="eurocross-language-menu" data-eurocross-language-menu role="listbox" aria-label="' + text('language', 'Language') + '" hidden></ul>' +
+			'</div>';
+
+		var menu = root.querySelector('[data-eurocross-language-menu]');
+		var labelNode = root.querySelector('[data-eurocross-language-current]');
+		if (labelNode) {
+			labelNode.textContent = currentName;
+		}
+
+		config.languages.forEach(function (language) {
+			if (!language || !language.code) {
+				return;
+			}
+			var name = language.native_name || language.name || language.code;
+			var li = document.createElement('li');
+			li.setAttribute('role', 'option');
+			li.setAttribute('aria-selected', language.code === current ? 'true' : 'false');
+			var btn = document.createElement('button');
+			btn.type = 'button';
+			btn.className = 'eurocross-language-option' + (language.code === current ? ' is-active' : '');
+			btn.setAttribute('data-eurocross-language-option', '');
+			btn.setAttribute('data-locale', language.code);
+			btn.textContent = name;
+			li.appendChild(btn);
+			menu.appendChild(li);
+		});
+
+		target.replaceWith(root);
+	}
+
 	ready(function () {
+		setupNavLanguageDropdown();
 		setupLanguageSwitchers();
 		setupTranslationTriggers();
 		setupChatbots();

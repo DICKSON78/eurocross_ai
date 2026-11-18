@@ -585,8 +585,9 @@ class EuroCross_AI_REST
             return new WP_Error('eurocross_invalid_locale', __('Enter a valid language code.', 'eurocross-ai'), ['status' => 400]);
         }
 
-        update_option('eurocross_locale', $locale, false);
-        update_user_meta(get_current_user_id(), 'eurocross_locale', $locale);
+        if (is_user_logged_in()) {
+            update_user_meta(get_current_user_id(), 'eurocross_locale', $locale);
+        }
 
         $language_name = $locale;
         foreach (eurocross_ai_get_languages() as $language) {

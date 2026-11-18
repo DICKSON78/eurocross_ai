@@ -333,6 +333,24 @@ function eurocross_ai_get_language_payload($force = false)
         : [];
     $allLanguages = eurocross_ai_sanitize_language_list(isset($response['all_languages']) ? $response['all_languages'] : $languages);
 
+    $status = isset($meta['status']) ? sanitize_key((string) $meta['status']) : '';
+    $limit = isset($meta['limits']['languages']) ? absint($meta['limits']['languages']) : count($languages);
+    if (in_array($status, ['trial', 'grace'], true)) {
+        $limit = max($limit, 10);
+    }
+
+    if (! empty($allLanguages) && $limit > 0) {
+        $effective = array_slice($allLanguages, 0, $limit);
+        if (count($effective) >= count($languages)) {
+            $languages = $effective;
+        }
+    }
+
+    if (! isset($meta['limits']) || ! is_array($meta['limits'])) {
+        $meta['limits'] = [];
+    }
+    $meta['limits']['languages'] = $limit;
+
     $payload = [
         'languages' => $languages,
         'meta' => $meta,
@@ -479,21 +497,55 @@ function eurocross_ai_connect_url()
  */
 function eurocross_ai_get_current_locale()
 {
-    $locale = eurocross_ai_get_option('eurocross_locale');
+    static $resolved = null;
+    if ($resolved !== null) {
+        return $resolved;
+    }
+
+    $default = eurocross_ai_sanitize_language_code(eurocross_ai_get_option('eurocross_locale'));
+    if ($default === '') {
+        $default = 'en';
+    }
+
+    $request_locale = '';
+    if (isset($_GET['eurocross_lang'])) {
+        $request_locale = eurocross_ai_sanitize_language_code(wp_unslash($_GET['eurocross_lang']));
+    } elseif (isset($_GET['lang'])) {
+        $request_locale = eurocross_ai_sanitize_language_code(wp_unslash($_GET['lang']));
+    }
+
+    if ($request_locale !== '') {
+        if (! headers_sent()) {
+            setcookie('eurocross_locale', $request_locale, time() + YEAR_IN_SECONDS, COOKIEPATH ? COOKIEPATH : '/', COOKIE_DOMAIN, is_ssl(), false);
+        }
+        $_COOKIE['eurocross_locale'] = $request_locale;
+
+        $resolved = $request_locale;
+
+        return $resolved;
+    }
 
     if (is_user_logged_in()) {
         $user_locale = eurocross_ai_sanitize_language_code(get_user_meta(get_current_user_id(), 'eurocross_locale', true));
         if ($user_locale !== '') {
-            return $user_locale;
-        }
-    } elseif (isset($_COOKIE['eurocross_locale'])) {
-        $cookie_locale = eurocross_ai_sanitize_language_code(wp_unslash($_COOKIE['eurocross_locale']));
-        if ($cookie_locale !== '') {
-            return $cookie_locale;
+            $resolved = $user_locale;
+
+            return $resolved;
         }
     }
 
-    return eurocross_ai_sanitize_language_code($locale) !== '' ? eurocross_ai_sanitize_language_code($locale) : 'en';
+    if (isset($_COOKIE['eurocross_locale'])) {
+        $cookie_locale = eurocross_ai_sanitize_language_code(wp_unslash($_COOKIE['eurocross_locale']));
+        if ($cookie_locale !== '') {
+            $resolved = $cookie_locale;
+
+            return $resolved;
+        }
+    }
+
+    $resolved = $default;
+
+    return $resolved;
 }
 
 /**
@@ -507,6 +559,8 @@ function eurocross_ai_get_current_locale()
  */
 function eurocross_ai_translate_text($text, $source, $target, $context = '')
 {
+    static $remote_calls = 0;
+
     if (! is_string($text) || $text === '' || $source === $target) {
         return $text;
     }
@@ -517,19 +571,36 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
         return $cached;
     }
 
+    $is_frontend_render = ! is_admin()
+        && ! wp_doing_ajax()
+        && ! wp_doing_cron()
+        && ! (defined('REST_REQUEST') && REST_REQUEST)
+        && ! (defined('WP_CLI') && WP_CLI);
+
+    if ($is_frontend_render && $remote_calls >= 10) {
+        return $text;
+    }
+
     $response = eurocross_ai_get_api()->translate($text, $source, $target);
+    $remote_calls++;
+
     if (is_wp_error($response)) {
         eurocross_ai_log('Translation failed', ['error' => $response->get_error_message()]);
+        set_transient($cache_key, $text, 5 * MINUTE_IN_SECONDS);
 
         return $text;
     }
 
     $translated = isset($response['data']['translated']) ? (string) $response['data']['translated'] : '';
     if ($translated === '') {
+        set_transient($cache_key, $text, 5 * MINUTE_IN_SECONDS);
+
         return $text;
     }
 
-    $allow_html = in_array($context, ['product_description', 'product_short_description', 'order_email'], true);
+    $allow_html = in_array($context, ['product_description', 'product_short_description', 'order_email', 'post_content', 'post_excerpt', 'widget_text', 'term_description'], true)
+        || strpos((string) $context, 'block_') === 0;
+
     $translated = $allow_html ? wp_kses_post($translated) : sanitize_text_field($translated);
 
     set_transient($cache_key, $translated, DAY_IN_SECONDS);
@@ -701,19 +772,38 @@ function eurocross_ai_language_switcher_markup($args = [])
     $label_text = esc_html__('Language', 'eurocross-ai');
     $aria_label = esc_attr__('Language switcher', 'eurocross-ai');
 
-    $html = '<nav class="eurocross-language-switcher '.esc_attr(sanitize_html_class($args['class'])).'" aria-label="'.$aria_label.'">';
-    if ($args['show_label']) {
-        $html .= '<label for="'.esc_attr($select_id).'">'.$label_text.'</label>';
+    $current_name = $label_text;
+    foreach ($languages as $language) {
+        $code = isset($language['code']) ? $language['code'] : '';
+        $name = ! empty($language['native_name']) ? $language['native_name'] : (! empty($language['name']) ? $language['name'] : $code);
+        if ($code === $current) {
+            $current_name = $name;
+            break;
+        }
     }
-    $html .= '<select id="'.esc_attr($select_id).'" class="eurocross-lang-select" data-eurocross-language-switcher>';
+
+    $list_id = $select_id.'-list';
+    $html = '<nav class="eurocross-language-switcher '.esc_attr(sanitize_html_class($args['class'])).'" aria-label="'.$aria_label.'" data-eurocross-switcher-root>';
+    if ($args['show_label']) {
+        $html .= '<span class="eurocross-language-label">'.esc_html($label_text).'</span>';
+    }
+    $html .= '<div class="eurocross-language-dropdown" data-eurocross-language-dropdown>';
+    $html .= '<button type="button" id="'.esc_attr($select_id).'" class="eurocross-language-toggle" data-eurocross-language-toggle aria-haspopup="listbox" aria-expanded="false" aria-controls="'.esc_attr($list_id).'">';
+    $html .= '<span class="eurocross-language-toggle-label" data-eurocross-language-current>'.esc_html($current_name).'</span>';
+    $html .= '<span class="eurocross-language-caret" aria-hidden="true"></span>';
+    $html .= '</button>';
+    $html .= '<ul id="'.esc_attr($list_id).'" class="eurocross-language-menu" data-eurocross-language-menu role="listbox" aria-label="'.esc_attr($label_text).'" hidden>';
 
     foreach ($languages as $language) {
         $code = isset($language['code']) ? $language['code'] : '';
         $name = ! empty($language['native_name']) ? $language['native_name'] : (! empty($language['name']) ? $language['name'] : $code);
-        $html .= '<option value="'.esc_attr($code).'"'.selected($current, $code, false).'>'.esc_html($name).'</option>';
+        $is_current = ($code === $current);
+        $html .= '<li role="option" aria-selected="'.($is_current ? 'true' : 'false').'">';
+        $html .= '<button type="button" class="eurocross-language-option'.($is_current ? ' is-active' : '').'" data-eurocross-language-option data-locale="'.esc_attr($code).'">'.esc_html($name).'</button>';
+        $html .= '</li>';
     }
 
-    $html .= '</select></nav>';
+    $html .= '</ul></div></nav>';
 
     return $html;
 }
@@ -865,8 +955,34 @@ class EuroCross_AI
         add_action('admin_init', [$this, 'register_settings']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
+        add_action('wp_footer', [$this, 'render_floating_chatbot']);
         add_action('admin_notices', [$this, 'admin_notices']);
         add_action('widgets_init', [$this, 'register_widget']);
+        add_action('wp_head', [$this, 'output_hreflang_tags'], 1);
+        add_filter('language_attributes', [$this, 'filter_language_attributes'], 20);
+        add_filter('home_url', [$this, 'propagate_language_url'], 20);
+        add_filter('page_link', [$this, 'propagate_language_url'], 20);
+        add_filter('post_link', [$this, 'propagate_language_url'], 20);
+        add_filter('post_type_link', [$this, 'propagate_language_url'], 20);
+        add_filter('term_link', [$this, 'propagate_language_url'], 20);
+
+        add_filter('the_title', [$this, 'translate_post_title'], 20, 2);
+        add_filter('the_content', [$this, 'translate_post_content'], 20);
+        add_filter('get_the_excerpt', [$this, 'translate_post_excerpt'], 20, 2);
+        add_filter('wp_nav_menu_objects', [$this, 'translate_menu_items'], 20);
+        add_filter('widget_title', [$this, 'translate_widget_title'], 20);
+        add_filter('widget_text', [$this, 'translate_widget_text'], 20);
+        add_filter('widget_text_content', [$this, 'translate_widget_text'], 20);
+        add_filter('document_title_parts', [$this, 'translate_document_title_parts'], 20);
+        add_filter('option_blogname', [$this, 'translate_blog_option_frontend'], 20);
+        add_filter('option_blogdescription', [$this, 'translate_blog_option_frontend'], 20);
+        add_filter('get_term', [$this, 'translate_term'], 20);
+        add_filter('render_block', [$this, 'translate_rendered_block'], 20, 2);
+        add_filter('get_the_archive_title', [$this, 'translate_archive_title'], 20);
+        add_filter('get_the_archive_description', [$this, 'translate_archive_description'], 20);
+        add_filter('single_post_title', [$this, 'translate_simple_frontend_text'], 20);
+        add_filter('single_term_title', [$this, 'translate_simple_frontend_text'], 20);
+        add_filter('bloginfo', [$this, 'filter_bloginfo_frontend'], 20, 2);
 
         add_action(EUROCROSS_AI_CRON_HOOK, [$this, 'run_daily_sync']);
 
@@ -1948,32 +2064,43 @@ class EuroCross_AI
         wp_enqueue_style('eurocross-ai-frontend', EUROCROSS_AI_PLUGIN_URL.'assets/frontend.css', [], EUROCROSS_AI_VERSION);
         wp_enqueue_script('eurocross-ai-frontend', EUROCROSS_AI_PLUGIN_URL.'assets/frontend.js', [], EUROCROSS_AI_VERSION, true);
 
+        $source = $this->get_source_locale();
+        $target = eurocross_ai_get_current_locale();
+
+        $strings = [
+            'loading' => __('Loading…', 'eurocross-ai'),
+            'error' => __('Something went wrong. Please try again.', 'eurocross-ai'),
+            'translate' => __('Translate', 'eurocross-ai'),
+            'translated' => __('Translation complete.', 'eurocross-ai'),
+            'send' => __('Send', 'eurocross-ai'),
+            'thinking' => __('Thinking…', 'eurocross-ai'),
+            'vatChecking' => __('Checking VAT number…', 'eurocross-ai'),
+            'vatAvailable' => __('VAT treatment updated.', 'eurocross-ai'),
+            'you' => __('You', 'eurocross-ai'),
+            'assistant' => __('Assistant', 'eurocross-ai'),
+            'reverseCharge' => __('Reverse charge applies.', 'eurocross-ai'),
+            'vatCharged' => __('VAT is charged at checkout.', 'eurocross-ai'),
+            'rate' => __('Rate', 'eurocross-ai'),
+            'language' => __('Language', 'eurocross-ai'),
+        ];
+
+        if ($target !== '' && $target !== $source) {
+            foreach ($strings as $key => $value) {
+                $strings[$key] = eurocross_ai_translate_text((string) $value, $source, $target, 'frontend_text');
+            }
+        }
+
         wp_localize_script(
             'eurocross-ai-frontend',
             'EuroCrossData',
             [
                 'restUrl' => esc_url_raw(rest_url('eurocross/v1')),
                 'nonce' => wp_create_nonce('wp_rest'),
-                'locale' => eurocross_ai_get_current_locale(),
+                'locale' => $target,
                 'languages' => eurocross_ai_get_languages(),
                 'canEdit' => current_user_can('manage_options') ? true : false,
                 'chatbotEnabled' => eurocross_ai_is_enabled('eurocross_chatbot_enabled') ? true : false,
-                'strings' => [
-                    'loading' => __('Loading…', 'eurocross-ai'),
-                    'error' => __('Something went wrong. Please try again.', 'eurocross-ai'),
-                    'translate' => __('Translate', 'eurocross-ai'),
-                    'translated' => __('Translation complete.', 'eurocross-ai'),
-                    'send' => __('Send', 'eurocross-ai'),
-                    'thinking' => __('Thinking…', 'eurocross-ai'),
-                    'vatChecking' => __('Checking VAT number…', 'eurocross-ai'),
-                    'vatAvailable' => __('VAT treatment updated.', 'eurocross-ai'),
-                    'you' => __('You', 'eurocross-ai'),
-                    'assistant' => __('Assistant', 'eurocross-ai'),
-                    'reverseCharge' => __('Reverse charge applies.', 'eurocross-ai'),
-                    'vatCharged' => __('VAT is charged at checkout.', 'eurocross-ai'),
-                    'rate' => __('Rate', 'eurocross-ai'),
-                    'language' => __('Language', 'eurocross-ai'),
-                ],
+                'strings' => $strings,
             ]
         );
     }
@@ -2018,42 +2145,590 @@ class EuroCross_AI
     /**
      * Chatbot shortcode.
      *
+     * The chatbot is rendered as a floating site-wide widget in the footer.
+     * Returning an empty string avoids duplicate widgets when the shortcode is used.
+     *
      * @param  array|string  $atts  Shortcode attributes.
      * @return string
      */
     public function chatbot_shortcode($atts)
     {
-        if (! eurocross_ai_is_enabled('eurocross_chatbot_enabled')) {
-            return '';
+        return '';
+    }
+
+    /**
+     * Whether frontend content should be translated for the current request.
+     *
+     * @return bool
+     */
+    private function should_translate_frontend()
+    {
+        if (is_admin() || wp_doing_ajax() || wp_doing_cron() || (defined('REST_REQUEST') && REST_REQUEST)) {
+            return false;
         }
 
-        $atts = shortcode_atts(
-            [
-                'title' => __('Chat with us', 'eurocross-ai'),
-            ],
-            $atts,
-            'eurocross_chatbot'
-        );
+        if (is_feed() || is_robots() || is_trackback()) {
+            return false;
+        }
 
-        static $instance = 0;
-        $instance++;
-        $input_id = 'eurocross-chatbot-message-'.$instance;
-        $title = sanitize_text_field((string) $atts['title']);
+        $current = eurocross_ai_get_current_locale();
+        $source = $this->get_source_locale();
 
-        ob_start();
+        return $current !== '' && $source !== '' && $current !== $source;
+    }
+
+    /**
+     * Get the site's configured source/default locale.
+     *
+     * @return string
+     */
+    private function get_source_locale()
+    {
+        $locale = eurocross_ai_sanitize_language_code(eurocross_ai_get_option('eurocross_locale'));
+
+        return $locale !== '' ? $locale : 'en';
+    }
+
+    /**
+     * Return the current request URL with a specific language parameter.
+     *
+     * @param  string  $lang  Language code, or empty for default/x-default.
+     * @return string
+     */
+    private function get_localized_current_url($lang = '')
+    {
+        $scheme = is_ssl() ? 'https' : 'http';
+        $host = isset($_SERVER['HTTP_HOST']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])) : wp_parse_url(home_url(), PHP_URL_HOST);
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '/';
+        $url = $scheme.'://'.$host.$request_uri;
+        $url = remove_query_arg(['eurocross_lang', 'lang'], $url);
+
+        $lang = eurocross_ai_sanitize_language_code($lang);
+        $source = $this->get_source_locale();
+
+        if ($lang !== '' && $lang !== $source) {
+            $url = add_query_arg('eurocross_lang', $lang, $url);
+        }
+
+        return $url;
+    }
+
+    /**
+     * Append the active language parameter to internal URLs.
+     *
+     * @param  string  $url  URL.
+     * @return string
+     */
+    public function propagate_language_url($url)
+    {
+        if (is_admin() || wp_doing_ajax() || (defined('REST_REQUEST') && REST_REQUEST) || ! is_string($url) || $url === '') {
+            return $url;
+        }
+
+        $current = eurocross_ai_get_current_locale();
+        $source = $this->get_source_locale();
+        if ($current === '' || $current === $source) {
+            return $url;
+        }
+
+        static $home_host = null;
+        if ($home_host === null) {
+            $home_host = wp_parse_url((string) get_option('home'), PHP_URL_HOST);
+            if (! $home_host) {
+                $home_host = wp_parse_url((string) get_option('siteurl'), PHP_URL_HOST);
+            }
+        }
+        $url_host = wp_parse_url($url, PHP_URL_HOST);
+        if ($url_host && $home_host && strcasecmp($url_host, $home_host) !== 0) {
+            return $url;
+        }
+
+        if (strpos($url, 'wp-admin') !== false || strpos($url, 'wp-login.php') !== false) {
+            return $url;
+        }
+
+        return add_query_arg('eurocross_lang', $current, $url);
+    }
+
+    /**
+     * Output hreflang alternate links for available languages.
+     *
+     * @return void
+     */
+    public function output_hreflang_tags()
+    {
+        if (is_admin() || is_feed() || is_robots() || is_search() || is_404()) {
+            return;
+        }
+
+        $languages = eurocross_ai_get_languages();
+        if (empty($languages)) {
+            return;
+        }
+
+        $source = $this->get_source_locale();
+        $seen = [];
+
+        foreach ($languages as $language) {
+            $code = isset($language['code']) ? eurocross_ai_sanitize_language_code($language['code']) : '';
+            if ($code === '' || isset($seen[$code])) {
+                continue;
+            }
+            $seen[$code] = true;
+            $href = esc_url($this->get_localized_current_url($code));
+            echo '<link rel="alternate" hreflang="'.esc_attr($code).'" href="'.$href.'" />'."\n";
+        }
+
+        $default_href = esc_url($this->get_localized_current_url($source));
+        echo '<link rel="alternate" hreflang="x-default" href="'.$default_href.'" />'."\n";
+    }
+
+    /**
+     * Reflect the active locale in the HTML lang attribute.
+     *
+     * @param  string  $output  Language attributes.
+     * @return string
+     */
+    public function filter_language_attributes($output)
+    {
+        $current = eurocross_ai_get_current_locale();
+        if ($current === '') {
+            return $output;
+        }
+
+        $lang = str_replace('_', '-', $current);
+        if (preg_match('/lang="[^"]*"/', $output)) {
+            return preg_replace('/lang="[^"]*"/', 'lang="'.esc_attr($lang).'"', $output);
+        }
+
+        return $output.' lang="'.esc_attr($lang).'"';
+    }
+
+    /**
+     * Translate rendered block output for frontend website details.
+     *
+     * @param  string  $block_content  Block HTML.
+     * @param  array  $block  Parsed block.
+     * @return string
+     */
+    public function translate_rendered_block($block_content, $block)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($block_content) || trim($block_content) === '') {
+            return $block_content;
+        }
+
+        $name = isset($block['blockName']) ? (string) $block['blockName'] : '';
+        $translatable_blocks = [
+            'core/page-list',
+            'core/navigation-link',
+            'core/navigation-submenu',
+            'core/home-link',
+            'core/site-title',
+            'core/site-tagline',
+            'core/query-title',
+            'core/post-navigation-link',
+            'core/loginout',
+            'core/search',
+            'core/heading',
+            'core/paragraph',
+            'core/button',
+            'core/list-item',
+            'core/table',
+            'core/quote',
+            'core/pullquote',
+            'core/verse',
+            'core/preformatted',
+            'core/details',
+            'woocommerce/mini-cart',
+            'woocommerce/breadcrumbs',
+            'woocommerce/product-categories',
+            'woocommerce/customer-account',
+            'woocommerce/mini-cart-title-block',
+            'woocommerce/mini-cart-items-block',
+            'woocommerce/empty-mini-cart-contents-block',
+            'woocommerce/filled-mini-cart-contents-block',
+            'woocommerce/mini-cart-shopping-button-block',
+            'woocommerce/mini-cart-cart-button-block',
+            'woocommerce/mini-cart-checkout-button-block',
+            'woocommerce/mini-cart-footer-block',
+            'woocommerce/product-button',
+        ];
+
+        if (in_array($name, $translatable_blocks, true)) {
+            $text_length = strlen(wp_strip_all_tags($block_content));
+            if ($text_length > 0 && $text_length <= 12000) {
+                return $this->translate_block_html($block_content, 'block_'.str_replace('/', '_', $name));
+            }
+        }
+
+        return $block_content;
+    }
+
+    /**
+     * Translate HTML block content while preserving tags.
+     *
+     * @param  string  $html  HTML content.
+     * @param  string  $context  Translation context.
+     * @return string
+     */
+    private function translate_block_html($html, $context)
+    {
+        if (! is_string($html) || trim(wp_strip_all_tags($html)) === '') {
+            return $html;
+        }
+
+        return eurocross_ai_translate_text($html, $this->get_source_locale(), eurocross_ai_get_current_locale(), $context);
+    }
+
+    /**
+     * Translate archive titles on the frontend.
+     *
+     * @param  string  $title  Archive title.
+     * @return string
+     */
+    public function translate_archive_title($title)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($title) || trim($title) === '') {
+            return $title;
+        }
+
+        return eurocross_ai_translate_text($title, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'archive_title');
+    }
+
+    /**
+     * Translate archive descriptions on the frontend.
+     *
+     * @param  string  $description  Archive description.
+     * @return string
+     */
+    public function translate_archive_description($description)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($description) || trim($description) === '') {
+            return $description;
+        }
+
+        return eurocross_ai_translate_text($description, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'term_description');
+    }
+
+    /**
+     * Translate simple frontend text values.
+     *
+     * @param  string  $text  Text.
+     * @return string
+     */
+    public function translate_simple_frontend_text($text)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($text) || trim($text) === '') {
+            return $text;
+        }
+
+        return eurocross_ai_translate_text($text, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+    }
+
+    /**
+     * Translate bloginfo name/description on the frontend.
+     *
+     * @param  string  $output  Blog info output.
+     * @param  string  $show  Requested field.
+     * @return string
+     */
+    public function filter_bloginfo_frontend($output, $show)
+    {
+        if (! $this->should_translate_frontend() || ! in_array((string) $show, ['name', 'description'], true)) {
+            return $output;
+        }
+
+        if (! is_string($output) || trim($output) === '') {
+            return $output;
+        }
+
+        return eurocross_ai_translate_text($output, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'blog_option');
+    }
+
+    /**
+     * Translate post/page titles on the frontend.
+     *
+     * @param  string  $title  Title.
+     * @param  int  $post_id  Post ID.
+     * @return string
+     */
+    public function translate_post_title($title, $post_id = 0)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($title) || $title === '') {
+            return $title;
+        }
+
+        $post_type = $post_id ? get_post_type($post_id) : '';
+        if ($post_type === 'nav_menu_item') {
+            return $title;
+        }
+
+        $context = $post_type === 'product' ? 'product_title' : 'post_title';
+
+        return eurocross_ai_translate_text($title, $this->get_source_locale(), eurocross_ai_get_current_locale(), $context);
+    }
+
+    /**
+     * Translate post/page content on the frontend.
+     *
+     * @param  string  $content  Content.
+     * @return string
+     */
+    public function translate_post_content($content)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($content) || trim(wp_strip_all_tags($content)) === '') {
+            return $content;
+        }
+
+        global $post;
+        $post_type = ($post && isset($post->post_type)) ? $post->post_type : '';
+        $context = $post_type === 'product' ? 'product_description' : 'post_content';
+
+        return eurocross_ai_translate_text($content, $this->get_source_locale(), eurocross_ai_get_current_locale(), $context);
+    }
+
+    /**
+     * Translate excerpts on the frontend.
+     *
+     * @param  string  $excerpt  Excerpt.
+     * @param  WP_Post  $post  Post.
+     * @return string
+     */
+    public function translate_post_excerpt($excerpt, $post = null)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($excerpt) || trim($excerpt) === '') {
+            return $excerpt;
+        }
+
+        $post_object = $post instanceof WP_Post ? $post : (get_post($post) ?: null);
+        if ($post_object && empty($post_object->post_excerpt)) {
+            return $excerpt;
+        }
+
+        $post_type = $post_object && isset($post_object->post_type) ? $post_object->post_type : '';
+        $context = $post_type === 'product' ? 'product_short_description' : 'post_excerpt';
+
+        return eurocross_ai_translate_text($excerpt, $this->get_source_locale(), eurocross_ai_get_current_locale(), $context);
+    }
+
+    /**
+     * Translate navigation menu item labels.
+     *
+     * @param  array  $items  Menu items.
+     * @return array
+     */
+    public function translate_menu_items($items)
+    {
+        if (! $this->should_translate_frontend() || ! is_array($items)) {
+            return $items;
+        }
+
+        $source = $this->get_source_locale();
+        $target = eurocross_ai_get_current_locale();
+
+        foreach ($items as $item) {
+            if (! is_object($item)) {
+                continue;
+            }
+            if (! empty($item->title)) {
+                $item->title = eurocross_ai_translate_text((string) $item->title, $source, $target, 'menu_item');
+            }
+            if (! empty($item->attr_title)) {
+                $item->attr_title = eurocross_ai_translate_text((string) $item->attr_title, $source, $target, 'menu_attr');
+            }
+            if (! empty($item->url)) {
+                $item->url = $this->propagate_language_url((string) $item->url);
+            }
+        }
+
+        return $items;
+    }
+
+    /**
+     * Translate widget titles.
+     *
+     * @param  string  $title  Widget title.
+     * @return string
+     */
+    public function translate_widget_title($title)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($title) || trim($title) === '') {
+            return $title;
+        }
+
+        return eurocross_ai_translate_text($title, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'widget_title');
+    }
+
+    /**
+     * Translate widget text content.
+     *
+     * @param  string  $text  Widget text.
+     * @return string
+     */
+    public function translate_widget_text($text)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($text) || trim($text) === '') {
+            return $text;
+        }
+
+        return eurocross_ai_translate_text($text, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'widget_text');
+    }
+
+    /**
+     * Translate document title parts.
+     *
+     * @param  array  $parts  Title parts.
+     * @return array
+     */
+    public function translate_document_title_parts($parts)
+    {
+        if (! $this->should_translate_frontend() || ! is_array($parts)) {
+            return $parts;
+        }
+
+        $source = $this->get_source_locale();
+        $target = eurocross_ai_get_current_locale();
+
+        foreach ($parts as $key => $value) {
+            if (is_string($value) && trim($value) !== '') {
+                $parts[$key] = eurocross_ai_translate_text($value, $source, $target, 'document_title');
+            }
+        }
+
+        return $parts;
+    }
+
+    /**
+     * Translate blog name/description options on the frontend.
+     *
+     * @param  mixed  $value  Option value.
+     * @return mixed
+     */
+    public function translate_blog_option_frontend($value)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($value) || trim($value) === '') {
+            return $value;
+        }
+
+        return eurocross_ai_translate_text($value, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'blog_option');
+    }
+
+    /**
+     * Translate taxonomy term name and description on the frontend.
+     *
+     * @param  WP_Term|mixed  $term  Term object.
+     * @return WP_Term|mixed
+     */
+    public function translate_term($term)
+    {
+        if (! $this->should_translate_frontend() || ! is_object($term) || empty($term->term_id)) {
+            return $term;
+        }
+
+        if (! empty($term->eurocross_translated)) {
+            return $term;
+        }
+
+        $source = $this->get_source_locale();
+        $target = eurocross_ai_get_current_locale();
+
+        $clone = clone $term;
+        if (! empty($clone->name)) {
+            $clone->name = eurocross_ai_translate_text((string) $clone->name, $source, $target, 'term_name');
+        }
+        if (! empty($clone->description)) {
+            $clone->description = eurocross_ai_translate_text((string) $clone->description, $source, $target, 'term_description');
+        }
+        $clone->eurocross_translated = true;
+
+        return $clone;
+    }
+
+    /**
+     * Render the floating chatbot widget in the footer.
+     *
+     * @return void
+     */
+    public function render_floating_chatbot()
+    {
+        if (is_admin() || ! eurocross_ai_is_enabled('eurocross_chatbot_enabled')) {
+            return;
+        }
+
+        static $rendered = false;
+        if ($rendered) {
+            return;
+        }
+        $rendered = true;
+
+        $source = $this->get_source_locale();
+        $target = eurocross_ai_get_current_locale();
+
+        $title = __('Chat with us', 'eurocross-ai');
+        $subtitle = __('We usually reply in a moment', 'eurocross-ai');
+        $welcome = __('Hi! How can we help you today?', 'eurocross-ai');
+        $close_chat = __('Close chat', 'eurocross-ai');
+        $open_chat = __('Open chat', 'eurocross-ai');
+        $your_message = __('Your message', 'eurocross-ai');
+        $placeholder = __('Type your message…', 'eurocross-ai');
+        $send = __('Send', 'eurocross-ai');
+
+        if ($target !== '' && $target !== $source) {
+            $title = eurocross_ai_translate_text($title, $source, $target, 'frontend_text');
+            $subtitle = eurocross_ai_translate_text($subtitle, $source, $target, 'frontend_text');
+            $welcome = eurocross_ai_translate_text($welcome, $source, $target, 'frontend_text');
+            $close_chat = eurocross_ai_translate_text($close_chat, $source, $target, 'frontend_text');
+            $open_chat = eurocross_ai_translate_text($open_chat, $source, $target, 'frontend_text');
+            $your_message = eurocross_ai_translate_text($your_message, $source, $target, 'frontend_text');
+            $placeholder = eurocross_ai_translate_text($placeholder, $source, $target, 'frontend_text');
+            $send = eurocross_ai_translate_text($send, $source, $target, 'frontend_text');
+        }
+
+        $input_id = 'eurocross-chatbot-message-float';
+        $panel_id = 'eurocross-chatbot-panel';
         ?>
-		<section class="eurocross-chatbot" data-eurocross-chatbot aria-label="<?php echo esc_attr($title); ?>">
-			<h2 class="eurocross-chatbot-title"><?php echo esc_html($title); ?></h2>
-			<div class="eurocross-chatbot-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
-			<form class="eurocross-chatbot-form">
-				<label class="screen-reader-text" for="<?php echo esc_attr($input_id); ?>"><?php esc_html_e('Your message', 'eurocross-ai'); ?></label>
-				<textarea id="<?php echo esc_attr($input_id); ?>" name="message" rows="3" maxlength="4000" required placeholder="<?php echo esc_attr__('Type your message…', 'eurocross-ai'); ?>"></textarea>
-				<button type="submit" class="eurocross-chatbot-send button"><?php esc_html_e('Send', 'eurocross-ai'); ?></button>
-				<p class="eurocross-chatbot-status" role="status" aria-live="polite"></p>
-			</form>
-		</section>
+		<div class="eurocross-chatbot-float is-open" data-eurocross-chatbot data-eurocross-chatbot-float>
+			<section id="<?php echo esc_attr($panel_id); ?>" class="eurocross-chatbot-panel" aria-label="<?php echo esc_attr($title); ?>">
+				<header class="eurocross-chatbot-header">
+					<div class="eurocross-chatbot-header-main">
+						<span class="eurocross-chatbot-badge" aria-hidden="true"><i class="eurocross-chatbot-badge-icon"></i></span>
+						<div>
+							<h2 class="eurocross-chatbot-title"><?php echo esc_html($title); ?></h2>
+							<p class="eurocross-chatbot-subtitle"><?php echo esc_html($subtitle); ?></p>
+						</div>
+					</div>
+					<button type="button" class="eurocross-chatbot-close" data-eurocross-chatbot-toggle aria-controls="<?php echo esc_attr($panel_id); ?>" aria-expanded="true" aria-label="<?php echo esc_attr($close_chat); ?>">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</header>
+				<div class="eurocross-chatbot-messages" role="log" aria-live="polite" aria-relevant="additions">
+					<div class="eurocross-chatbot-message is-assistant">
+						<div class="eurocross-chatbot-bubble eurocross-chatbot-welcome">
+							<span class="eurocross-chatbot-body"><?php echo esc_html($welcome); ?></span>
+						</div>
+					</div>
+				</div>
+				<form class="eurocross-chatbot-form">
+					<label class="screen-reader-text" for="<?php echo esc_attr($input_id); ?>"><?php echo esc_html($your_message); ?></label>
+					<div class="eurocross-chatbot-input-row">
+						<textarea id="<?php echo esc_attr($input_id); ?>" name="message" rows="2" maxlength="4000" required placeholder="<?php echo esc_attr($placeholder); ?>"></textarea>
+						<button type="submit" class="eurocross-chatbot-send" aria-label="<?php echo esc_attr($send); ?>">
+							<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+						</button>
+					</div>
+					<p class="eurocross-chatbot-status" role="status" aria-live="polite"></p>
+				</form>
+			</section>
+			<button type="button" class="eurocross-chatbot-launcher" data-eurocross-chatbot-toggle aria-controls="<?php echo esc_attr($panel_id); ?>" aria-expanded="true" aria-label="<?php echo esc_attr($open_chat); ?>">
+				<span class="eurocross-chatbot-launcher-open" aria-hidden="true">
+					<svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 14H5.17L4 17.17V4h16v12z"/><path d="M7 9h10v2H7zm0-3h10v2H7zm0 6h7v2H7z"/></svg>
+				</span>
+				<span class="eurocross-chatbot-launcher-close" aria-hidden="true">
+					<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.3 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.29-6.3z"/></svg>
+				</span>
+			</button>
+		</div>
 		<?php
-        return ob_get_clean();
     }
 
     /**

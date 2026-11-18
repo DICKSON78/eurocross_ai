@@ -309,11 +309,8 @@ class GumroadBillingTest extends TestCase
     public function test_plan_change_pushes_plan_and_languages_to_connected_site(): void
     {
         $user = User::factory()->create(['email' => 'buyer@example.com']);
-        $settings = EuroCrossSettings::factory()->create([
+        $settings = EuroCrossSettings::factory()->activeSubscription('starter')->create([
             'user_id' => $user->id,
-            'plan' => 'starter',
-            'subscription_status' => 'active',
-            'subscription_id' => 'SUB-1',
         ]);
 
         DB::table('eurocross_connected_sites')->insert([

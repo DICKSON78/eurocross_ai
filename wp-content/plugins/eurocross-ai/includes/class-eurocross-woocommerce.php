@@ -22,15 +22,40 @@ class EuroCross_AI_WooCommerce
     private static $guarded_product_ids = [];
 
     /**
+     * Whether WooCommerce hooks have been registered.
+     *
+     * @var bool
+     */
+    private $hooks_registered = false;
+
+    /**
      * Register WooCommerce hooks.
      *
      * @return void
      */
     public function register()
     {
-        if (! class_exists('WooCommerce')) {
+        if (class_exists('WooCommerce')) {
+            $this->register_hooks();
+
             return;
         }
+
+        add_action('plugins_loaded', [$this, 'register_hooks'], 20);
+    }
+
+    /**
+     * Attach WooCommerce hooks when WooCommerce is available.
+     *
+     * @return void
+     */
+    public function register_hooks()
+    {
+        if (! class_exists('WooCommerce') || $this->hooks_registered) {
+            return;
+        }
+
+        $this->hooks_registered = true;
 
         add_action('woocommerce_update_product', [$this, 'schedule_product_translation'], 20, 1);
         add_action('woocommerce_new_product', [$this, 'schedule_product_translation'], 20, 1);

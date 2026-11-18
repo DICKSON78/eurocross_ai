@@ -11,30 +11,56 @@ class PlanLimitedLanguagesTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_starter_plan_exposes_only_three_languages(): void
+    public function test_trial_starter_plan_exposes_ten_languages(): void
     {
         $this->authenticatePlan('starter', 'ecx_live_starter_token');
 
         $this->getJson('/eurocross/languages')
             ->assertOk()
             ->assertJsonPath('meta.plan', 'starter')
-            ->assertJsonPath('meta.limits.languages', 3)
+            ->assertJsonPath('meta.status', 'trial')
+            ->assertJsonPath('meta.limits.languages', 10)
             ->assertJsonPath('meta.limits.chatbot', false)
-            ->assertJsonCount(3, 'data')
+            ->assertJsonCount(10, 'data')
             ->assertJsonCount(15, 'all_languages')
             ->assertJsonPath('data.0.code', 'en')
-            ->assertJsonPath('data.2.code', 'de');
+            ->assertJsonPath('data.9.code', 'ja');
     }
 
-    public function test_growth_plan_exposes_five_languages(): void
+    public function test_trial_growth_plan_exposes_ten_languages(): void
     {
         $this->authenticatePlan('growth', 'ecx_live_growth_token');
 
         $this->getJson('/eurocross/languages')
             ->assertOk()
             ->assertJsonPath('meta.plan', 'growth')
-            ->assertJsonPath('meta.limits.languages', 5)
+            ->assertJsonPath('meta.status', 'trial')
+            ->assertJsonPath('meta.limits.languages', 10)
             ->assertJsonPath('meta.limits.chatbot', true)
+            ->assertJsonCount(10, 'data')
+            ->assertJsonPath('data.9.code', 'ja');
+    }
+
+    public function test_active_starter_subscription_exposes_three_languages(): void
+    {
+        $this->authenticateActiveSubscription('starter', 'ecx_live_paid_starter_token');
+
+        $this->getJson('/eurocross/languages')
+            ->assertOk()
+            ->assertJsonPath('meta.plan', 'starter')
+            ->assertJsonPath('meta.limits.languages', 3)
+            ->assertJsonCount(3, 'data')
+            ->assertJsonPath('data.2.code', 'de');
+    }
+
+    public function test_active_growth_subscription_exposes_five_languages(): void
+    {
+        $this->authenticateActiveSubscription('growth', 'ecx_live_paid_growth_token');
+
+        $this->getJson('/eurocross/languages')
+            ->assertOk()
+            ->assertJsonPath('meta.plan', 'growth')
+            ->assertJsonPath('meta.limits.languages', 5)
             ->assertJsonCount(5, 'data')
             ->assertJsonPath('data.4.code', 'it');
     }
@@ -51,13 +77,13 @@ class PlanLimitedLanguagesTest extends TestCase
             ->assertJsonPath('data.14.code', 'el');
     }
 
-    public function test_translation_rejects_language_outside_connected_plan(): void
+    public function test_translation_rejects_language_outside_trial_limit(): void
     {
         $this->authenticatePlan('starter', 'ecx_live_reject_token');
 
         $this->postJson('/eurocross/translate', [
             'text' => 'Hello world',
-            'target_lang' => 'es',
+            'target_lang' => 'sv',
         ])->assertStatus(422)->assertJsonValidationErrors('target_lang');
     }
 
@@ -77,6 +103,18 @@ class PlanLimitedLanguagesTest extends TestCase
     private function authenticatePlan(string $plan, string $token): void
     {
         $settings = EuroCrossSettings::factory()->create(['plan' => $plan]);
+
+        EuroCrossApiKey::factory()
+            ->for($settings, 'shop')
+            ->accessToken($token)
+            ->create();
+
+        $this->withHeaders(['X-API-Key' => $token]);
+    }
+
+    private function authenticateActiveSubscription(string $plan, string $token): void
+    {
+        $settings = EuroCrossSettings::factory()->activeSubscription($plan)->create();
 
         EuroCrossApiKey::factory()
             ->for($settings, 'shop')

@@ -243,7 +243,13 @@ class EuroCrossSettings extends Model
 
     public function planLanguageLimit(): int
     {
-        return (int) config("payment.plans.{$this->plan}.features.languages", 0);
+        $limit = (int) config("payment.plans.{$this->plan}.features.languages", 0);
+
+        if ($this->isTrial()) {
+            return max($limit, 10);
+        }
+
+        return $limit;
     }
 
     public function rateLimit(): int
