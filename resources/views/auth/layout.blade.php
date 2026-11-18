@@ -8,14 +8,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 @fonts @vite(['resources/css/app.css','resources/js/auth.js'])
 </head>
-<body class="min-h-screen bg-cream"
-      data-firebase-api-key="{{ config('services.firebase.api_key') }}"
-      data-firebase-auth-domain="{{ config('services.firebase.auth_domain') }}"
-      data-firebase-project-id="{{ config('services.firebase.project_id') }}"
-      data-firebase-storage-bucket="{{ config('services.firebase.storage_bucket') }}"
-      data-firebase-messaging-sender-id="{{ config('services.firebase.messaging_sender_id') }}"
-      data-firebase-app-id="{{ config('services.firebase.app_id') }}"
-      data-firebase-measurement-id="{{ config('services.firebase.measurement_id') }}">
+<body class="min-h-screen bg-cream" @include('layouts.partials.google-auth-data')>
 <div class="page-enter grid min-h-screen w-full lg:grid-cols-[1.05fr_0.95fr]">
     <aside class="relative hidden overflow-hidden bg-plum-950 px-9 py-12 text-white sm:px-12 lg:flex lg:min-h-screen lg:flex-col lg:justify-center xl:px-20">
         <div class="pointer-events-none absolute inset-0 ec-glow opacity-80" aria-hidden="true"></div>

@@ -7,6 +7,7 @@
     @endphp
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $ecTitle }}</title>
     <meta name="description" content="{{ $ecDesc }}">
     <link rel="canonical" href="{{ url()->current() }}">
@@ -30,10 +31,13 @@
         'offers' => ['@type' => 'Offer', 'price' => '12', 'priceCurrency' => 'EUR'],
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}</script>
     @fonts
-    @vite(['resources/css/app.css', 'resources/js/marketing.js'])
+    @if (config('services.google.client_id'))
+        <script src="https://accounts.google.com/gsi/client" defer></script>
+    @endif
+    @vite(['resources/css/app.css', 'resources/js/marketing.js', 'resources/js/auth-popup.js'])
     @stack('head')
 </head>
-<body class="overflow-x-hidden">
+<body class="overflow-x-hidden" @include('layouts.partials.google-auth-data')>
 
 <a href="#ec-main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-plum-700 focus:px-4 focus:py-2 focus:text-white">Skip to content</a>
 
@@ -135,6 +139,26 @@
         </div>
     </div>
 </footer>
+
+@guest
+<div data-auth-popup class="fixed inset-0 z-[80] hidden items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="ec-auth-popup-title">
+    <div data-auth-popup-close class="absolute inset-0 bg-plum-950/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-md rounded-3xl border border-plum-900/8 bg-white p-8 shadow-2xl">
+        <button type="button" data-auth-popup-close class="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-xl text-plum-900/40 transition hover:bg-plum-900/5 hover:text-plum-900" aria-label="Close sign-in popup"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        <div class="grid h-12 w-12 place-items-center rounded-2xl bg-plum-700 text-white"><i class="fa-solid fa-language text-xl" aria-hidden="true"></i></div>
+        <p class="mt-6 text-[11px] font-semibold uppercase tracking-[0.22em] text-rose-500">Welcome to EuroCross</p>
+        <h2 id="ec-auth-popup-title" class="mt-2 text-2xl font-black tracking-tight text-plum-900">Continue as a EuroCross user</h2>
+        <p class="mt-3 text-sm leading-7 text-plum-900/55">Create your free workspace in one tap. Your 7-day trial starts automatically.</p>
+        <button type="button" data-auth-popup-google class="mt-7 flex w-full items-center justify-center gap-3 rounded-xl border border-plum-900/10 bg-white px-5 py-3 text-sm font-semibold text-plum-900 transition hover:bg-plum-900/5">
+            @include('auth.partials.google-icon') <span data-auth-popup-google-label>Continue with Google</span>
+        </button>
+        <div class="mt-5 flex items-center justify-between text-xs text-plum-900/50">
+            <a href="{{ route('login') }}" class="font-semibold text-plum-700 hover:text-rose-500">Sign in</a>
+            <a href="{{ route('register') }}" class="font-semibold text-plum-700 hover:text-rose-500">Create with email</a>
+        </div>
+    </div>
+</div>
+@endguest
 
 </body>
 </html>

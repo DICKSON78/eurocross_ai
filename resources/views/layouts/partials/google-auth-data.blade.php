@@ -1,0 +1,8 @@
+data-firebase-api-key="{{ config('services.firebase.api_key') }}"
+data-firebase-auth-domain="{{ config('services.firebase.auth_domain') }}"
+data-firebase-project-id="{{ config('services.firebase.project_id') }}"
+data-firebase-storage-bucket="{{ config('services.firebase.storage_bucket') }}"
+data-firebase-messaging-sender-id="{{ config('services.firebase.messaging_sender_id') }}"
+data-firebase-app-id="{{ config('services.firebase.app_id') }}"
+data-firebase-measurement-id="{{ config('services.firebase.measurement_id') }}"
+data-google-client-id="{{ config('services.google.client_id') }}"

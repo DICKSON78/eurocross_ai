@@ -100,6 +100,46 @@ class AuthAndConnectTest extends TestCase
             ->assertDontSee('Advanced API dashboard');
     }
 
+    public function test_home_renders_google_signin_popup_for_guests(): void
+    {
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('data-auth-popup', false)
+            ->assertSee('data-firebase-api-key', false)
+            ->assertSee('Continue as a EuroCross user')
+            ->assertSee('Continue with Google');
+    }
+
+    public function test_home_does_not_render_google_signin_popup_for_authenticated_users(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get('/')
+            ->assertOk()
+            ->assertDontSee('data-auth-popup', false)
+            ->assertDontSee('Continue as a EuroCross user');
+    }
+
+    public function test_home_loads_google_one_tap_when_client_id_is_configured(): void
+    {
+        config()->set('services.google.client_id', 'test-client.apps.googleusercontent.com');
+
+        $this->get('/')
+            ->assertOk()
+            ->assertSee('https://accounts.google.com/gsi/client', false)
+            ->assertSee('data-google-client-id="test-client.apps.googleusercontent.com"', false);
+    }
+
+    public function test_home_skips_google_one_tap_without_client_id(): void
+    {
+        config()->set('services.google.client_id', null);
+
+        $this->get('/')
+            ->assertOk()
+            ->assertDontSee('https://accounts.google.com/gsi/client', false);
+    }
+
     public function test_connect_start_rejects_private_site_url(): void
     {
         $this->get('/connect/start?'.http_build_query([
