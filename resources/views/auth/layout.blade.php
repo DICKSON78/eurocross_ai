@@ -16,34 +16,50 @@
       data-firebase-messaging-sender-id="{{ config('services.firebase.messaging_sender_id') }}"
       data-firebase-app-id="{{ config('services.firebase.app_id') }}"
       data-firebase-measurement-id="{{ config('services.firebase.measurement_id') }}">
-<div class="page-enter mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-20">
-    <aside class="hidden lg:block">
-        <a href="{{ route('home') }}" class="inline-flex items-center gap-3 text-plum-900">
-            <span class="grid h-12 w-12 place-items-center rounded-2xl bg-ec-primary text-white"><i class="fa-solid fa-language text-xl" aria-hidden="true"></i></span>
-            <span class="text-lg font-bold tracking-tight">EuroCross</span>
-        </a>
+<div class="page-enter mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
+    <aside class="relative hidden self-stretch overflow-hidden rounded-[2rem] bg-plum-950 px-9 py-10 text-white shadow-lift lg:flex lg:flex-col lg:justify-between">
+        <div class="pointer-events-none absolute inset-0 ec-glow opacity-70" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute inset-0 ec-grain opacity-20" aria-hidden="true"></div>
+        <div class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-rose-500/20 blur-3xl" aria-hidden="true"></div>
 
-        <p class="ec-kicker mt-10">Translation, SEO and VAT for WooCommerce</p>
-        <h2 class="ec-display mt-6 text-4xl tracking-tight text-plum-900 sm:text-5xl">
-            Sell in every language.<br><span class="text-plum-600">Stay compliant everywhere.</span>
-        </h2>
-        <p class="ec-lead mt-6 max-w-xl">One workspace for AI translations, plan-based language controls, and EU VAT/OSS rules. Connect your store in minutes.</p>
+        <div class="relative">
+            <a href="{{ route('home') }}" class="inline-flex items-center gap-3 text-white">
+                <span class="grid h-12 w-12 place-items-center rounded-2xl bg-rose-500 text-white"><i class="fa-solid fa-language text-xl" aria-hidden="true"></i></span>
+                <span class="text-lg font-bold tracking-tight">EuroCross</span>
+            </a>
 
-        <ul class="mt-10 space-y-4">
-            @foreach ([
-                ['fa-language', 'Plan-aware languages', 'Offer only the languages included in your package.'],
-                ['fa-file-invoice', 'VAT and OSS built in', 'Validate VAT numbers and apply the right EU rules.'],
-                ['fa-robot', 'Optional AI chatbot', 'Answer customer questions in their own language.'],
-            ] as $feature)
-                <li class="flex items-start gap-4">
-                    <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-rose-500"><i class="fa-solid {{ $feature[0] }}" aria-hidden="true"></i></span>
-                    <span><strong class="block text-sm text-plum-900">{{ $feature[1] }}</strong><span class="text-sm text-plum-900/50">{{ $feature[2] }}</span></span>
-                </li>
-            @endforeach
-        </ul>
+            <p class="mt-10 text-xs font-semibold uppercase tracking-[0.22em] text-rose-400">Ready when you are</p>
+            <h2 class="ec-display mt-4 text-4xl tracking-tight text-white sm:text-5xl">
+                Give your store a<br><span class="text-rose-400">bigger world.</span>
+            </h2>
+            <p class="mt-5 max-w-lg text-sm leading-7 text-white/60 sm:text-base">Start your 7-day free trial. Translation, SEO and VAT for WooCommerce are waiting.</p>
+
+            <a href="{{ config('payment.gumroad.checkout_starter') }}" class="ec-action mt-7 !bg-rose-500 hover:!bg-rose-400">
+                Start free trial <i class="fa-solid fa-arrow-right text-xs" aria-hidden="true"></i>
+            </a>
+
+            <ul class="mt-8 grid gap-3 text-sm text-white/70">
+                @foreach ([
+                    ['fa-language', 'Plan-aware languages'],
+                    ['fa-file-invoice', 'VAT and OSS built in'],
+                    ['fa-robot', 'Optional AI chatbot'],
+                ] as $feature)
+                    <li class="flex items-center gap-3">
+                        <span class="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/10 text-rose-400"><i class="fa-solid {{ $feature[0] }}" aria-hidden="true"></i></span>
+                        <span>{{ $feature[1] }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+
+        <div class="relative mt-10 rounded-3xl bg-white/10 p-5 ring-1 ring-white/10 backdrop-blur-sm">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.2em] text-rose-400">Sell in every language</p>
+            <p class="mt-1 text-sm text-white/60">Stay compliant everywhere.</p>
+            <img src="{{ asset('images/illustrations/around-the-world.svg') }}" alt="Global reach illustration" class="mx-auto mt-4 w-full max-w-[17rem] object-contain">
+        </div>
     </aside>
 
-    <main class="mx-auto w-full max-w-md">
+    <main class="mx-auto w-full max-w-md self-center">
         <div class="rounded-3xl border border-plum-900/8 bg-white p-7 shadow-lift sm:p-9">
             <div class="mb-7 flex items-center justify-between">
                 <a href="{{ route('home') }}" class="grid h-11 w-11 place-items-center rounded-2xl bg-ec-primary text-white lg:hidden" aria-label="EuroCross home"><i class="fa-solid fa-language" aria-hidden="true"></i></a>
