@@ -80,7 +80,7 @@
                 </div>
                 @if (! $settings->hasActiveAccess())
                     <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                        Your free trial or subscription is not active. Choose a plan below to recharge. After payment is confirmed, your existing WordPress plugin key will work again automatically. If you don't have a key yet, generate one in <a href="{{ route('dashboard.module', 'keys') }}" class="font-semibold underline">API Keys</a>.
+                        Your free trial or subscription is not active. Choose a plan below to recharge. After payment is confirmed, your existing WordPress plugin key will work again automatically. If you don't have a key yet, connect your WordPress site or manage keys in <a href="{{ route('dashboard.module', 'keys') }}" class="font-semibold underline">API Keys</a>.
                     </div>
                 @else
                     <p class="mt-5 text-sm text-plum-900/60">After payment, activation usually takes about a minute. Your existing plugin API key continues to work when your account is active.</p>
@@ -113,40 +113,117 @@
             </tbody></table></div>
         </div>
     @elseif ($module === 'keys')
-        @if (session('new_api_key'))
-            <div class="fade-in mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
-                <p class="text-sm font-bold text-emerald-800">Copy this key now — it will not be shown again.</p>
-                <code class="mt-3 block break-all rounded-xl bg-white p-4 text-xs text-plum-900 ring-1 ring-emerald-200">{{ session('new_api_key') }}</code>
-                <p class="mt-3 text-xs text-emerald-700">Paste it into the EuroCross AI plugin settings in WordPress (Connection → API key), or use Connect with EuroCross. After recharge/payment is activated, the same key will work again.</p>
-            </div>
-        @endif
-        <div class="table-card">
-            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-plum-900/6 px-6 py-4">
-                <div><h2 class="text-sm font-bold text-plum-900">API keys & plugin access</h2><p class="mt-1 text-xs text-plum-900/40">Use an <strong>eurocross</strong> key in the WordPress plugin. If you connected your site from WordPress, a key was created automatically.</p></div>
-                <form method="POST" action="{{ route('dashboard.keys.generate') }}">
-                    @csrf
-                    <button type="submit" class="portal-btn !py-2"><i class="fa-solid fa-key" aria-hidden="true"></i> Generate API key</button>
-                </form>
-            </div>
-            <div class="border-b border-plum-900/6 px-6 py-4 space-y-2 text-sm text-plum-900/70">
-                <p>1. Install and activate the EuroCross AI plugin in your WordPress (WooCommerce) admin. 2. In plugin settings, click <strong>Connect with EuroCross</strong> (recommended) or paste an API key from here. 3. Start using translations during your 7-day trial. 4. After 7 days, recharge from <a href="{{ route('dashboard.module', 'billing') }}" class="font-semibold text-ec-primary hover:underline">Billing</a> (account required), then keep using the same key.</p>
-            </div>
-            <div class="divide-y divide-plum-900/5">
-                @forelse ($keys as $key)
-                    @php
-                        $raw = (string) ($key->encrypted_key ?? '');
-                        $masked = $raw !== '' ? substr($raw, 0, 12).'…'.substr($raw, -4) : '—';
-                    @endphp
-                    <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+        @php
+            $access = $settings->accessStatus();
+            $plans = [
+                'starter' => ['name' => 'Starter', 'price' => '€12', 'words' => '50,000 words / month', 'languages' => '3 languages'],
+                'growth' => ['name' => 'Growth', 'price' => '€25', 'words' => '100,000 words / month', 'languages' => '5 languages'],
+                'scale' => ['name' => 'Scale', 'price' => '€65', 'words' => '300,000 words / month', 'languages' => '15 languages'],
+            ];
+        @endphp
+        <div x-data="{ buyOpen: {{ $access['allowed'] ? 'false' : 'true' }} }">
+            @if (! $access['allowed'])
+                <div class="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-5">
+                    <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
-                            <p class="text-sm font-medium">{{ $key->key_name ?: ucfirst($key->provider).' key' }} <span class="text-plum-900/40">({{ $key->provider }})</span></p>
-                            <p class="mt-1 font-mono text-xs text-plum-900/50">{{ $masked }}</p>
+                            <p class="text-sm font-bold text-amber-900">Your free trial has ended</p>
+                            <p class="mt-1 text-sm text-amber-900/80">Purchase a plan on this website to activate access and get your API key working again. Payment requires a signed-in account and is processed securely by Gumroad.</p>
                         </div>
-                        <span class="text-xs {{ $key->active ? 'text-emerald-700' : 'text-plum-900/40' }}">{{ $key->active ? 'Active' : 'Inactive' }}</span>
+                        <button type="button" @click="buyOpen = true" class="portal-btn !bg-amber-700 hover:!bg-amber-800 shrink-0"><i class="fa-solid fa-cart-shopping" aria-hidden="true"></i> Buy API access</button>
                     </div>
-                @empty
-                    <p class="px-6 py-8 text-center text-sm text-plum-900/40">No keys yet. Connect your WordPress site or generate one above.</p>
-                @endforelse
+                </div>
+            @elseif ($settings->isTrial() && ! $settings->hasActiveSubscription())
+                <div class="mb-6 rounded-2xl border border-sky-200 bg-sky-50 p-5 text-sm text-sky-900">
+                    <p class="font-bold">Free trial active</p>
+                    <p class="mt-1 text-sky-900/80">During your 7-day trial, your API key is provided freely when you connect your WordPress site. Manual key generation is available after purchasing a plan. When your trial ends, you will be redirected here to buy API access.</p>
+                </div>
+            @endif
+
+            @if (session('new_api_key'))
+                <div class="fade-in mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-6">
+                    <p class="text-sm font-bold text-emerald-800">Copy this key now — it will not be shown again.</p>
+                    <code class="mt-3 block break-all rounded-xl bg-white p-4 text-xs text-plum-900 ring-1 ring-emerald-200">{{ session('new_api_key') }}</code>
+                    <p class="mt-3 text-xs text-emerald-700">Paste it into the EuroCross AI plugin settings in WordPress (Connection → API key), or use Connect with EuroCross. Your key works while your account has active access.</p>
+                </div>
+            @endif
+
+            <div class="table-card">
+                <div class="flex flex-wrap items-center justify-between gap-3 border-b border-plum-900/6 px-6 py-4">
+                    <div>
+                        <h2 class="text-sm font-bold text-plum-900">API keys & plugin access</h2>
+                        <p class="mt-1 text-xs text-plum-900/40">Use an <strong>eurocross</strong> key in the WordPress plugin. If you connected your site from WordPress, a key is created automatically during your trial.</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" @click="buyOpen = true" class="portal-btn !py-2 !bg-plum-900 hover:!bg-plum-800"><i class="fa-solid fa-bag-shopping" aria-hidden="true"></i> Buy / recharge plan</button>
+                        @if ($settings->hasActiveSubscription())
+                            <form method="POST" action="{{ route('dashboard.keys.generate') }}">
+                                @csrf
+                                <button type="submit" class="portal-btn !py-2"><i class="fa-solid fa-key" aria-hidden="true"></i> Generate API key</button>
+                            </form>
+                        @endif
+                    </div>
+                </div>
+                <div class="border-b border-plum-900/6 px-6 py-4 space-y-2 text-sm text-plum-900/70">
+                    <p>1. Install and activate the EuroCross AI plugin in your WordPress (WooCommerce) admin. 2. In plugin settings, click <strong>Connect with EuroCross</strong> (recommended) or paste an API key from here. 3. Start using translations during your 7-day trial (a free key is provided via connect). 4. After your trial ends, purchase a plan below (account required) to activate access; your existing key will work again after payment is confirmed.</p>
+                    @if ($settings->isTrial() && ! $settings->hasActiveSubscription())
+                        <p class="text-xs text-plum-900/50">No new key is generated from this page during the free trial. Use the key provided by WordPress Connect.</p>
+                    @elseif (! $access['allowed'])
+                        <p class="text-xs font-medium text-amber-800">A paid plan is required to activate or generate API keys. Choose a package to continue.</p>
+                    @endif
+                </div>
+                <div class="divide-y divide-plum-900/5">
+                    @forelse ($keys as $key)
+                        @php
+                            $raw = (string) ($key->encrypted_key ?? '');
+                            $masked = $raw !== '' ? substr($raw, 0, 12).'…'.substr($raw, -4) : '—';
+                        @endphp
+                        <div class="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
+                            <div>
+                                <p class="text-sm font-medium">{{ $key->key_name ?: ucfirst($key->provider).' key' }} <span class="text-plum-900/40">({{ $key->provider }})</span></p>
+                                <p class="mt-1 font-mono text-xs text-plum-900/50">{{ $masked }}</p>
+                            </div>
+                            <span class="text-xs {{ $key->active ? 'text-emerald-700' : 'text-plum-900/40' }}">{{ $key->active ? 'Active' : 'Inactive' }}</span>
+                        </div>
+                    @empty
+                        <p class="px-6 py-8 text-center text-sm text-plum-900/40">
+                            @if ($access['allowed'] && $settings->isTrial() && ! $settings->hasActiveSubscription())
+                                No keys yet. Connect your WordPress site from the plugin to receive your free trial API key.
+                            @elseif ($settings->hasActiveSubscription())
+                                No keys yet. Connect your WordPress site or generate one above.
+                            @else
+                                No active key yet. Purchase a plan to activate API access.
+                            @endif
+                        </p>
+                    @endforelse
+                </div>
+            </div>
+
+            <div x-show="buyOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center p-4" aria-modal="true" role="dialog">
+                <div class="absolute inset-0 bg-plum-950/60" @click="buyOpen = false"></div>
+                <div class="relative z-10 w-full max-w-4xl rounded-2xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto" @click.stop>
+                    <div class="flex items-start justify-between gap-4 border-b border-plum-900/6 pb-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-plum-900">Purchase API access</h3>
+                            <p class="mt-1 text-sm text-plum-900/60">Choose a plan. You will complete secure payment with Gumroad while signed in to this account, so your subscription and API key are activated for <strong>{{ $user->email }}</strong>.</p>
+                        </div>
+                        <button type="button" @click="buyOpen = false" class="rounded-lg p-2 text-plum-900/40 hover:bg-plum-900/5" aria-label="Close"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                    </div>
+                    <div class="mt-5 grid gap-4 md:grid-cols-3">
+                        @foreach ($plans as $planKey => $plan)
+                            <div class="rounded-2xl border {{ $settings->plan === $planKey ? 'border-ec-primary ring-1 ring-ec-primary/20' : 'border-plum-900/8' }} p-5">
+                                <p class="text-xs font-semibold uppercase tracking-wide text-plum-900/40">{{ $plan['name'] }}</p>
+                                <p class="mt-2 text-3xl font-bold text-plum-900">{{ $plan['price'] }}<span class="text-sm font-medium text-plum-900/40">/month</span></p>
+                                <ul class="mt-4 space-y-2 text-sm text-plum-900/70">
+                                    <li><i class="fa-solid fa-check text-emerald-600 mr-2" aria-hidden="true"></i>{{ $plan['words'] }}</li>
+                                    <li><i class="fa-solid fa-check text-emerald-600 mr-2" aria-hidden="true"></i>{{ $plan['languages'] }}</li>
+                                    <li><i class="fa-solid fa-check text-emerald-600 mr-2" aria-hidden="true"></i>API key & plugin access</li>
+                                </ul>
+                                <a href="{{ route('billing.checkout', $planKey) }}" class="portal-btn mt-5 w-full justify-center">{{ $settings->plan === $planKey ? 'Recharge' : 'Buy' }} {{ $plan['name'] }} <i class="fa-solid fa-arrow-up-right-from-square text-xs" aria-hidden="true"></i></a>
+                            </div>
+                        @endforeach
+                    </div>
+                    <p class="mt-5 text-xs text-plum-900/40">Secure checkout is processed by Gumroad. We never store card details. After payment is confirmed, activation usually takes about a minute and your existing key will work again.</p>
+                </div>
             </div>
         </div>
     @elseif ($module === 'chatbot')

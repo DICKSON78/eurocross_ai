@@ -432,4 +432,46 @@ class GumroadBillingTest extends TestCase
         $this->assertStringStartsWith('https://gumroad.test/l/starter', $location);
         $this->assertStringContainsString('email=buyer%40example.com', $location);
     }
+
+    public function test_trial_user_cannot_manually_generate_api_key(): void
+    {
+        $user = User::factory()->create();
+        $settings = EuroCrossSettings::create([
+            'user_id' => $user->id,
+            'billing_email' => $user->email,
+            'plan' => 'starter',
+            'trial' => true,
+            'trial_started_at' => now(),
+            'trial_expires' => now()->addDays(5),
+            'grace_expires' => now()->addDays(8),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('dashboard.keys.generate'))
+            ->assertRedirect(route('dashboard.module', 'keys'))
+            ->assertSessionHasErrors('keys');
+
+        $this->assertSame(0, EuroCrossApiKey::where('shop_id', $settings->id)->count());
+    }
+
+    public function test_paid_subscriber_can_generate_api_key(): void
+    {
+        $user = User::factory()->create();
+        $settings = EuroCrossSettings::create([
+            'user_id' => $user->id,
+            'billing_email' => $user->email,
+            'plan' => 'starter',
+            'trial' => false,
+            'subscription_id' => 'sub_123',
+            'subscription_status' => 'active',
+            'subscription_current_period_end' => now()->addMonth(),
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('dashboard.keys.generate'))
+            ->assertRedirect(route('dashboard.module', 'keys'))
+            ->assertSessionHas('new_api_key');
+
+        $this->assertSame(1, EuroCrossApiKey::where('shop_id', $settings->id)->count());
+    }
 }
