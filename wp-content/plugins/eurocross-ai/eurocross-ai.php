@@ -585,7 +585,8 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
         && ! wp_doing_ajax()
         && ! wp_doing_cron()
         && ! (defined('REST_REQUEST') && REST_REQUEST)
-        && ! (defined('WP_CLI') && WP_CLI);
+        && ! (defined('WP_CLI') && WP_CLI)
+        && PHP_SAPI !== 'cli';
 
     $is_main_content = $context === 'post_content'
         || $context === 'post_excerpt'
