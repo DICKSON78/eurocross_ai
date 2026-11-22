@@ -1005,6 +1005,7 @@ class EuroCross_AI
         add_filter('single_post_title', [$this, 'translate_simple_frontend_text'], 20);
         add_filter('single_term_title', [$this, 'translate_simple_frontend_text'], 20);
         add_filter('bloginfo', [$this, 'filter_bloginfo_frontend'], 20, 2);
+        add_filter('gettext', [$this, 'translate_frontend_gettext'], 20, 3);
 
         add_action(EUROCROSS_AI_CRON_HOOK, [$this, 'run_daily_sync']);
 
@@ -2348,7 +2349,16 @@ class EuroCross_AI
             'core/site-title',
             'core/site-tagline',
             'core/query-title',
+            'core/post-title',
+            'core/post-excerpt',
+            'core/post-author-name',
+            'core/post-date',
+            'core/post-terms',
             'core/post-navigation-link',
+            'core/query-pagination-next',
+            'core/query-pagination-previous',
+            'core/query-no-results',
+            'core/read-more',
             'core/loginout',
             'core/search',
             'core/heading',
@@ -2502,6 +2512,59 @@ class EuroCross_AI
         }
 
         return eurocross_ai_translate_text($text, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+    }
+
+    /**
+     * Translate selected frontend gettext strings (theme/Woo UI labels).
+     *
+     * @param  string  $translation  Translated text.
+     * @param  string  $text  Original text.
+     * @param  string  $domain  Text domain.
+     * @return string
+     */
+    public function translate_frontend_gettext($translation, $text, $domain)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($translation) || trim($translation) === '') {
+            return $translation;
+        }
+
+        $text = is_string($text) ? trim($text) : '';
+        if ($text === '' || strlen($text) > 80) {
+            return $translation;
+        }
+
+        static $allow = null;
+        if ($allow === null) {
+            $allow = array_flip([
+                'Skip to content',
+                'Skip to content.',
+                'by',
+                'By',
+                'in',
+                'In',
+                'Read more',
+                'Continue reading',
+                'Search',
+                'Search…',
+                'Search...',
+                'Previous',
+                'Next',
+                'Page not found',
+                'Nothing found',
+                'No results found.',
+                'Leave a comment',
+                'Comments',
+                'Reply',
+                'Older posts',
+                'Newer posts',
+            ]);
+        }
+
+        if (! isset($allow[$text]) && ! isset($allow[$translation])) {
+            return $translation;
+        }
+
+        return eurocross_ai_translate_text($translation, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
     }
 
     /**
