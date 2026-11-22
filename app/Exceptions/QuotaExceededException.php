@@ -12,7 +12,7 @@ class QuotaExceededException extends RuntimeException
         public int $requested,
         public int $reserved,
     ) {
-        parent::__construct('Monthly word allowance exceeded. Upgrade your plan to continue translating.');
+        parent::__construct('Monthly word allowance exceeded. Upgrade your plan, or wait for your next monthly quota reset.');
     }
 
     /**

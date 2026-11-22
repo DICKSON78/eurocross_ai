@@ -192,7 +192,21 @@ class EuroCrossSettings extends Model
 
     public function hasActiveAccess(): bool
     {
-        return $this->isTrial() || $this->isInGracePeriod() || $this->hasActiveSubscription();
+        return true;
+    }
+
+    public function effectivePlan(): string
+    {
+        if ($this->hasActiveSubscription() || $this->isTrial() || $this->isInGracePeriod()) {
+            return is_array(config("payment.plans.{$this->plan}")) ? (string) $this->plan : 'starter';
+        }
+
+        return 'free';
+    }
+
+    public function isOnFreePlan(): bool
+    {
+        return $this->effectivePlan() === 'free';
     }
 
     /**
@@ -225,25 +239,26 @@ class EuroCrossSettings extends Model
         }
 
         return [
-            'allowed' => false,
-            'reason' => 'No active trial or subscription',
-            'status' => 'inactive',
+            'allowed' => true,
+            'reason' => 'Free plan active',
+            'status' => 'free',
         ];
     }
 
     public function planPrice(): float
     {
-        return (float) config("payment.plans.{$this->plan}.price", 0);
+        return (float) config("payment.plans.{$this->effectivePlan()}.price", 0);
     }
 
     public function planWordLimit(): int
     {
-        return (int) config("payment.plans.{$this->plan}.features.words", 0);
+        return (int) config("payment.plans.{$this->effectivePlan()}.features.words", 0);
     }
 
     public function planLanguageLimit(): int
     {
-        $limit = (int) config("payment.plans.{$this->plan}.features.languages", 0);
+        $plan = $this->effectivePlan();
+        $limit = (int) config("payment.plans.{$plan}.features.languages", 0);
 
         if ($this->isTrial()) {
             return max($limit, 10);
@@ -254,12 +269,14 @@ class EuroCrossSettings extends Model
 
     public function rateLimit(): int
     {
-        return (int) config("payment.plans.{$this->plan}.rate_limit", 60);
+        return (int) config("payment.plans.{$this->effectivePlan()}.rate_limit", 60);
     }
 
     public function getPlanDisplayName(): string
     {
-        return ucfirst($this->plan);
+        $plan = $this->effectivePlan();
+
+        return ucfirst($plan);
     }
 
     /**
@@ -267,7 +284,8 @@ class EuroCrossSettings extends Model
      */
     public function getPlanFeatures(): array
     {
-        $features = config("payment.plans.{$this->plan}.features", []);
+        $plan = $this->effectivePlan();
+        $features = config("payment.plans.{$plan}.features", []);
 
         return [
             'words' => number_format($this->planWordLimit()).' words/month',

@@ -73,14 +73,18 @@
             <div class="table-card p-6">
                 <h2 class="text-sm font-bold text-plum-900">Subscription</h2>
                 <div class="mt-4 grid gap-4 sm:grid-cols-2 text-sm">
-                    <div><p class="section-label">Plan</p><p class="mt-1 font-semibold">{{ ucfirst($settings->plan) }}</p></div>
-                    <div><p class="section-label">Access</p><p class="mt-1 font-semibold capitalize">{{ $access['status'] ?? ($settings->subscription_status ?? 'inactive') }}</p></div>
+                    <div><p class="section-label">Plan</p><p class="mt-1 font-semibold">{{ $settings->getPlanDisplayName() }}</p></div>
+                    <div><p class="section-label">Access</p><p class="mt-1 font-semibold capitalize">{{ $access['status'] ?? ($settings->subscription_status ?? 'free') }}</p></div>
                     <div><p class="section-label">Billing email</p><p class="mt-1">{{ $settings->billing_email ?? $user->email }}</p></div>
                     <div><p class="section-label">Renews / expires</p><p class="mt-1">{{ $settings->subscription_current_period_end?->format('Y-m-d') ?? $settings->trial_expires?->format('Y-m-d') ?? '—' }}</p></div>
                 </div>
-                @if (! $settings->hasActiveAccess())
-                    <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                        Your free trial or subscription is not active. Choose a plan below to recharge. After payment is confirmed, your existing WordPress plugin key will work again automatically. If you don't have a key yet, connect your WordPress site or manage keys in <a href="{{ route('dashboard.module', 'keys') }}" class="font-semibold underline">API Keys</a>.
+                @if ($settings->isOnFreePlan())
+                    <div class="mt-5 rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+                        You're on the <strong>Free</strong> plan ({{ number_format($settings->planWordLimit()) }} words/month, {{ $settings->planLanguageLimit() }} languages). Your API key keeps working. Upgrade for higher limits and more languages.
+                    </div>
+                @elseif ($settings->isTrial())
+                    <div class="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        Your trial is active. You can upgrade anytime to keep full access after trial.
                     </div>
                 @else
                     <p class="mt-5 text-sm text-plum-900/60">After payment, activation usually takes about a minute. Your existing plugin API key continues to work when your account is active.</p>

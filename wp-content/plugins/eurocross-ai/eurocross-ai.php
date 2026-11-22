@@ -3,9 +3,10 @@
  * Plugin Name: EuroCross AI
  * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.2.4
+ * Version: 1.2.5
  * Requires at least: 6.2
  * Requires PHP: 7.4
+ * Requires Plugins: woocommerce
  * Author: EuroCross AI
  * Author URI: https://eurocross-ai.kadetech.online
  * License: GPLv2 or later
@@ -18,7 +19,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.2.4');
+    define('EUROCROSS_AI_VERSION', '1.2.5');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);

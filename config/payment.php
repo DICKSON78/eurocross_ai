@@ -73,6 +73,18 @@ return [
      * Plan Pricing (EUR)
      */
     'plans' => [
+        'free' => [
+            'price' => 0.00,
+            'currency' => 'eur',
+            'billing_cycle' => 'month',
+            'rate_limit' => 30,
+            'features' => [
+                'words' => 2000,
+                'languages' => 2,
+                'vat' => 'basic',
+                'chatbot' => false,
+            ],
+        ],
         'starter' => [
             'price' => 12.00,
             'currency' => 'eur',

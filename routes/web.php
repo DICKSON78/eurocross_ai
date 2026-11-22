@@ -13,6 +13,8 @@ Route::view('/integrations', 'integrations')->name('integrations');
 Route::view('/about', 'about')->name('about');
 Route::view('/faq', 'faq')->name('faq');
 Route::view('/contact', 'contact')->name('contact');
+Route::view('/terms', 'terms')->name('terms');
+Route::view('/privacy', 'privacy')->name('privacy');
 
 Route::view('/billing/thank-you', 'billing.thank-you')->name('billing.thank-you');
 

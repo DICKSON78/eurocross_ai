@@ -57,14 +57,7 @@ class ClientDashboardController extends Controller
     {
         $settings = $this->settings();
 
-        if (! $settings->hasActiveSubscription()) {
-            $message = $settings->isTrial()
-                ? 'During your free trial, your API key is provided when you connect your WordPress site. After the trial, purchase a plan to generate or manage paid API keys.'
-                : 'An active paid subscription is required to generate a new API key. Purchase a plan to activate access, or keep using your existing key after recharge.';
-
-            return redirect()->route('dashboard.module', 'keys')
-                ->withErrors(['keys' => $message]);
-        }
+        // All plans including Free can generate keys; quotas/rate limits are enforced by the API.
 
         $token = 'ecx_live_'.Str::random(48);
 

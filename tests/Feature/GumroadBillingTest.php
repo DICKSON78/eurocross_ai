@@ -302,8 +302,10 @@ class GumroadBillingTest extends TestCase
         ]);
 
         $this->assertFalse($settings->isInGracePeriod());
-        $this->assertFalse($settings->hasActiveAccess());
-        $this->assertSame('inactive', $settings->accessStatus()['status']);
+        $this->assertTrue($settings->hasActiveAccess());
+        $this->assertTrue($settings->isOnFreePlan());
+        $this->assertSame('free', $settings->accessStatus()['status']);
+        $this->assertSame('free', $settings->effectivePlan());
     }
 
     public function test_plan_change_pushes_plan_and_languages_to_connected_site(): void
@@ -431,7 +433,7 @@ class GumroadBillingTest extends TestCase
         $this->assertStringContainsString('email=buyer%40example.com', $location);
     }
 
-    public function test_trial_user_cannot_manually_generate_api_key(): void
+    public function test_trial_user_can_manually_generate_api_key(): void
     {
         $user = User::factory()->create();
         $settings = EuroCrossSettings::create([
@@ -447,9 +449,9 @@ class GumroadBillingTest extends TestCase
         $this->actingAs($user)
             ->post(route('dashboard.keys.generate'))
             ->assertRedirect(route('dashboard.module', 'keys'))
-            ->assertSessionHasErrors('keys');
+            ->assertSessionHas('new_api_key');
 
-        $this->assertSame(0, EuroCrossApiKey::where('shop_id', $settings->id)->count());
+        $this->assertSame(1, EuroCrossApiKey::where('shop_id', $settings->id)->count());
     }
 
     public function test_paid_subscriber_can_generate_api_key(): void

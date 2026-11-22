@@ -176,7 +176,7 @@ class TranslationController extends Controller
         if ($used + $requestedWords > $limit) {
             return response()->json([
                 'success' => false,
-                'error' => 'Monthly word allowance exceeded. Upgrade your plan to continue translating.',
+                'error' => 'Monthly word allowance exceeded. Upgrade your plan, or wait for your next monthly quota reset.',
                 'data' => [
                     'used' => $used,
                     'limit' => $limit,

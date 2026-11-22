@@ -5,7 +5,8 @@ Tags: translation, woocommerce, multilingual, vat, chatbot
 Requires at least: 6.2
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.4
+Requires Plugins: woocommerce
+Stable tag: 1.2.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -30,13 +31,21 @@ EuroCross AI connects your WooCommerce store to your EuroCross AI SaaS account. 
 * **Security controls** — public REST routes are rate limited, public AI requests are disabled by default, and only administrators can change the site-wide default language.
 * **Developer friendly** — REST routes under `eurocross/v1`, translatable strings and a debug log mode with redacted API calls.
 
-= External service dependency =
+== External services ==
 
-This plugin requires an active EuroCross AI SaaS account. Use **Connect with EuroCross** in the settings to link this site securely and receive an API key automatically. The plugin sends text submitted for translation, VAT numbers and chat messages to the API URL configured in the settings (default: `https://eurocross-ai.kadetech.online`). The API key and site secret are stored on the server; the API key appears only in the admin settings field and is never sent by frontend JavaScript or exposed to site visitors.
+This plugin connects to the EuroCross AI SaaS API to provide translation, language, chatbot, VAT, and account/plan features. An active EuroCross AI account and API key are required for API-powered features. A permanent Free plan is available with monthly limits; paid plans increase limits and features. After a trial ends, accounts fall back to the Free plan instead of being locked out.
+
+= EuroCross AI API =
+
+* **Service URL:** `https://eurocross-ai.kadetech.online` (default; configurable by the site administrator)
+* **What data is sent:** text/content submitted for translation, source/target language codes, site/domain and connection identifiers, API key/site secret for server-to-server authentication, VAT numbers and country codes when VAT checks are used, and chat messages when the chatbot is used.
+* **When data is sent:** when an administrator connects/tests the site, when translations are requested (server-side or nonce-protected REST requests), when VAT validation/treatment is requested, and when chatbot requests are submitted.
+* **Why data is sent:** to authenticate the connected site, enforce plan/quota/access, return translations, validate VAT/treatment information, and return chatbot responses.
+* **Terms and privacy:** [Terms of Service](https://eurocross-ai.kadetech.online/terms) | [Privacy Policy](https://eurocross-ai.kadetech.online/privacy)
 
 = Privacy =
 
-The plugin stores the configured settings, cached translations, cached language lists and the last connection status in your WordPress database. Completed product translations are also kept in post meta so they can be rendered without another API call. All plugin data, including that post meta, is removed when the plugin is uninstalled. Requests to the external API are subject to the privacy policy of your EuroCross AI provider.
+The plugin stores configured settings, cached translations, cached language lists, connection status, and last API issue status in your WordPress database. Completed product translations may also be stored in post meta so they can be rendered without another API call. API keys/secrets are stored server-side in WordPress options and are not exposed to public frontend JavaScript. Plugin data is removed by the uninstall routine. Data sent to the external EuroCross AI service is subject to your EuroCross AI service terms and privacy policy.
 
 == Installation ==
 
@@ -96,6 +105,11 @@ Uninstalling the plugin deletes its options, transients, cached translations, st
 3. A WooCommerce storefront with the language switcher and VAT checkout field.
 
 == Changelog ==
+
+= 1.2.5 =
+* Added a permanent Free plan fallback (monthly limits) so functionality is not locked after trial expiration.
+* Clarified external service, privacy, terms, and quota reset behavior for WordPress.org compliance.
+* Allowed API key generation for Free/trial accounts; paid plans increase limits and features.
 
 = 1.2.4 =
 * Allowed nonce-protected, rate-limited storefront translation REST requests for WooCommerce dynamic content while keeping chatbot public-AI gating.
