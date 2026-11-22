@@ -3,7 +3,7 @@
  * Plugin Name: EuroCross AI
  * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Author: EuroCross AI
@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.2.0');
+    define('EUROCROSS_AI_VERSION', '1.2.1');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -1007,9 +1007,14 @@ class EuroCross_AI
         add_filter('bloginfo', [$this, 'filter_bloginfo_frontend'], 20, 2);
         add_filter('gettext', [$this, 'translate_frontend_gettext'], 20, 3);
         add_filter('ngettext', [$this, 'translate_frontend_ngettext'], 20, 5);
+        add_filter('gettext_with_context', [$this, 'translate_frontend_gettext_with_context'], 20, 4);
+        add_filter('ngettext_with_context', [$this, 'translate_frontend_ngettext_with_context'], 20, 6);
         add_filter('get_the_date', [$this, 'translate_frontend_date'], 20, 3);
         add_filter('get_the_time', [$this, 'translate_frontend_date'], 20, 3);
         add_filter('get_the_modified_date', [$this, 'translate_frontend_date'], 20, 3);
+        add_filter('get_the_modified_time', [$this, 'translate_frontend_date'], 20, 3);
+        add_filter('get_comment_date', [$this, 'translate_frontend_date'], 20, 3);
+        add_filter('get_comment_time', [$this, 'translate_frontend_date'], 20, 3);
         add_filter('woocommerce_cart_item_name', [$this, 'translate_simple_frontend_text'], 20);
         add_filter('woocommerce_order_item_name', [$this, 'translate_simple_frontend_text'], 20);
 
@@ -2536,38 +2541,37 @@ class EuroCross_AI
         }
 
         $text = is_string($text) ? trim($text) : '';
-        if ($text === '' || strlen($text) > 80) {
+        $domain = is_string($domain) ? $domain : '';
+        if ($text === '' || strlen($text) > 120) {
             return $translation;
         }
 
         static $allow = null;
         if ($allow === null) {
             $allow = array_flip([
-                'Skip to content',
-                'Skip to content.',
-                'by',
-                'By',
-                'in',
-                'In',
-                'Read more',
-                'Continue reading',
-                'Search',
-                'Search…',
-                'Search...',
-                'Previous',
-                'Next',
-                'Page not found',
-                'Nothing found',
-                'No results found.',
-                'Leave a comment',
-                'Comments',
-                'Reply',
-                'Older posts',
-                'Newer posts',
+                'Skip to content', 'Skip to content.', 'by', 'By', 'in', 'In', 'Read more', 'Continue reading',
+                'Search', 'Search…', 'Search...', 'Previous', 'Next', 'Page not found', 'Nothing found',
+                'No results found.', 'Leave a comment', 'Comments', 'Reply', 'Older posts', 'Newer posts',
+                'Add to cart', 'View cart', 'Checkout', 'Cart', 'My account', 'Shop', 'Product', 'Products',
+                'Subtotal', 'Total', 'Shipping', 'Tax', 'Discount', 'Coupon code', 'Apply coupon', 'Remove',
+                'Update cart', 'Proceed to checkout', 'Place order', 'Billing details', 'Shipping address',
+                'Payment method', 'Order summary', 'Your cart is currently empty.', 'Return to shop',
+                'No products found', 'Sale', 'Out of stock', 'In stock', 'Description', 'Reviews',
+                'Additional information', 'Related products', 'You may also like…', 'SKU', 'Category', 'Categories', 'Tags',
             ]);
         }
 
-        if (! isset($allow[$text]) && ! isset($allow[$translation])) {
+        $allowed = isset($allow[$text]) || isset($allow[$translation]);
+        if (! $allowed) {
+            $safeDomains = ['woocommerce', 'woocommerce-blocks', 'wc-blocks', 'default', 'twentytwentyfour', 'twentytwentythree', 'twentytwentytwo'];
+            $looksUi = strlen($text) <= 80
+                && preg_match('/[A-Za-z]/', $text)
+                && ! preg_match('/https?:\/\/|<[^>]+>|[{}$]/', $text)
+                && ! preg_match('/^(wp_|woocommerce_|wc_)/', $text);
+            $allowed = in_array($domain, $safeDomains, true) && $looksUi;
+        }
+
+        if (! $allowed) {
             return $translation;
         }
 
@@ -2592,18 +2596,22 @@ class EuroCross_AI
 
         $single = is_string($single) ? trim($single) : '';
         $plural = is_string($plural) ? trim($plural) : '';
+        $domain = is_string($domain) ? $domain : '';
         $allowed = [
-            '%s item',
-            '%s items',
-            '%d item',
-            '%d items',
-            '%s comment',
-            '%s comments',
-            '%1$s comment',
-            '%1$s comments',
+            '%s item', '%s items', '%d item', '%d items',
+            '%s comment', '%s comments', '%1$s comment', '%1$s comments',
+            '%s review', '%s reviews', '%s product', '%s products',
         ];
 
-        if (! in_array($single, $allowed, true) && ! in_array($plural, $allowed, true)) {
+        $isAllowed = in_array($single, $allowed, true) || in_array($plural, $allowed, true);
+        if (! $isAllowed) {
+            $safeDomains = ['woocommerce', 'woocommerce-blocks', 'wc-blocks', 'default'];
+            $looksUi = strlen($single) <= 80 && strlen($plural) <= 80
+                && ! preg_match('/https?:\/\/|<[^>]+>|[{}$]/', $single.$plural);
+            $isAllowed = in_array($domain, $safeDomains, true) && $looksUi;
+        }
+
+        if (! $isAllowed) {
             return $translation;
         }
 
@@ -2611,18 +2619,104 @@ class EuroCross_AI
     }
 
     /**
-     * Translate formatted frontend dates.
+     * Translate selected frontend gettext with context.
      *
-     * @param  string  $date  Formatted date.
+     * @param  string  $translation  Translated text.
+     * @param  string  $text  Original text.
+     * @param  string  $context  Context.
+     * @param  string  $domain  Domain.
      * @return string
      */
-    public function translate_frontend_date($date)
+    public function translate_frontend_gettext_with_context($translation, $text, $context, $domain)
+    {
+        return $this->translate_frontend_gettext($translation, $text, $domain);
+    }
+
+    /**
+     * Translate selected frontend ngettext with context.
+     *
+     * @param  string  $translation  Translated text.
+     * @param  string  $single  Singular.
+     * @param  string  $plural  Plural.
+     * @param  int  $number  Number.
+     * @param  string  $context  Context.
+     * @param  string  $domain  Domain.
+     * @return string
+     */
+    public function translate_frontend_ngettext_with_context($translation, $single, $plural, $number, $context, $domain)
+    {
+        return $this->translate_frontend_ngettext($translation, $single, $plural, $number, $domain);
+    }
+
+    /**
+     * Localize formatted frontend dates when possible, with AI fallback.
+     *
+     * @param  string  $date  Formatted date.
+     * @param  string  $format  Requested format.
+     * @param  mixed  $object  Post/comment object when provided.
+     * @return string
+     */
+    public function translate_frontend_date($date, $format = '', $object = null)
     {
         if (! $this->should_translate_frontend() || ! is_string($date) || trim($date) === '') {
             return $date;
         }
 
-        return eurocross_ai_translate_text($date, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+        $target = eurocross_ai_get_current_locale();
+        $wp_locale = $this->map_wp_locale($target);
+        $format = is_string($format) ? $format : '';
+        $timestamp = null;
+
+        if (is_object($object) && isset($object->post_date_gmt)) {
+            $timestamp = get_post_timestamp($object);
+            if ($format === '') {
+                $format = (string) get_option('date_format');
+            }
+        } elseif (is_object($object) && isset($object->comment_date_gmt)) {
+            $timestamp = function_exists('get_comment_timestamp') ? get_comment_timestamp($object) : strtotime((string) $object->comment_date_gmt);
+            if ($format === '') {
+                $format = (string) get_option('date_format');
+            }
+        }
+
+        if ($wp_locale !== '' && $timestamp) {
+            $switched = function_exists('switch_to_locale') && switch_to_locale($wp_locale);
+            try {
+                $localized = function_exists('wp_date')
+                    ? wp_date($format, (int) $timestamp, wp_timezone())
+                    : date_i18n($format, (int) $timestamp);
+                if (is_string($localized) && trim($localized) !== '') {
+                    return $localized;
+                }
+            } finally {
+                if ($switched) {
+                    restore_previous_locale();
+                }
+            }
+        }
+
+        return eurocross_ai_translate_text($date, $this->get_source_locale(), $target, 'frontend_text');
+    }
+
+    /**
+     * Map EuroCross locale to WordPress locale.
+     */
+    private function map_wp_locale(string $locale): string
+    {
+        $map = [
+            'en' => 'en_US',
+            'fr' => 'fr_FR',
+            'de' => 'de_DE',
+            'es' => 'es_ES',
+            'it' => 'it_IT',
+            'pt' => 'pt_PT',
+            'nl' => 'nl_NL',
+            'ar' => 'ar',
+            'zh' => 'zh_CN',
+            'ja' => 'ja',
+        ];
+
+        return $map[$locale] ?? '';
     }
 
     /**

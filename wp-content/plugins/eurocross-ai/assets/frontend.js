@@ -401,7 +401,6 @@
 		var parent = node.parentElement;
 		if (!parent) return false;
 		if (parent.closest('[data-eurocross-no-translate], script, style, noscript, code, pre')) return false;
-		if (parent.closest('[data-eurocross-translated="1"]')) return false;
 		var text = String(node.nodeValue || '').trim();
 		if (text.length < 2 || text.length > 300) return false;
 		if (!/[A-Za-z]/.test(text)) return false;
@@ -414,7 +413,13 @@
 		var queue = new Map();
 		var timer = null;
 		var inflight = false;
-		var seen = new WeakSet();
+		var seen = new WeakMap();
+
+		function shouldRetry(node, text) {
+			var prev = seen.get(node);
+			if (!prev) return true;
+			return prev.source !== text && prev.translated !== text;
+		}
 
 		function flush() {
 			timer = null;
@@ -432,9 +437,12 @@
 					var node = entry[1].node;
 					if (!node || !node.parentElement) return;
 					var translated = String(data.translated || '');
-					if (translated && translated !== entry[1].text) {
+					var current = String(node.nodeValue || '').trim();
+					if (translated && translated !== entry[1].text && (current === entry[1].text || node.nodeValue.indexOf(entry[1].text) !== -1)) {
 						node.nodeValue = node.nodeValue.replace(entry[1].text, translated);
-						if (node.parentElement) node.parentElement.setAttribute('data-eurocross-translated', '1');
+						seen.set(node, { source: entry[1].text, translated: translated });
+					} else if (translated) {
+						seen.set(node, { source: entry[1].text, translated: translated });
 					}
 				}).catch(function () {});
 			});
@@ -450,10 +458,10 @@
 		}
 
 		function enqueue(node) {
-			if (!shouldTranslateNode(node) || seen.has(node)) return;
+			if (!shouldTranslateNode(node)) return;
 			var text = String(node.nodeValue || '').trim();
-			if (!text) return;
-			seen.add(node);
+			if (!text || !shouldRetry(node, text)) return;
+			seen.set(node, { source: text, translated: '' });
 			queue.set(node, { node: node, text: text });
 			schedule();
 		}
@@ -462,10 +470,10 @@
 			if (!root) return;
 			var walkerRoot = root.nodeType === Node.TEXT_NODE ? root.parentElement : root;
 			if (!walkerRoot || !walkerRoot.querySelectorAll) return;
-			var selector = '.wc-block-components-product-name, .wc-block-cart-item__product, .wc-block-components-totals-item, .wc-block-formatted-money-amount, .wc-block-components-checkbox__label, .wc-block-components-radio-control__label, .wc-block-components-title, .wc-block-components-notice-banner, .wc-block-components-validation-error, .wc-block-cart__empty-cart__title, .wp-block-woocommerce-cart, .wp-block-woocommerce-checkout, .wp-block-woocommerce-mini-cart-contents';
-			var containers = walkerRoot.matches && walkerRoot.matches(selector) ? [walkerRoot] : [];
-			var found = walkerRoot.querySelectorAll(selector);
-			Array.prototype.forEach.call(found, function (el) { containers.push(el); });
+			var selector = '.wc-block-components-product-name, .wc-block-cart-item__product, .wc-block-components-totals-item, .wc-block-formatted-money-amount, .wc-block-components-checkbox__label, .wc-block-components-radio-control__label, .wc-block-components-title, .wc-block-components-notice-banner, .wc-block-components-validation-error, .wc-block-cart__empty-cart__title, .wp-block-woocommerce-cart, .wp-block-woocommerce-checkout, .wp-block-woocommerce-mini-cart-contents, .wc-block-mini-cart, .wc-block-mini-cart__footer, .wc-block-cart-item__prices, .wc-block-components-product-metadata, .wc-block-components-product-price, .woocommerce-mini-cart, .widget_shopping_cart_content, .cart_totals, .woocommerce-checkout-review-order';
+			var containers = [];
+			if (walkerRoot.matches && walkerRoot.matches(selector)) containers.push(walkerRoot);
+			Array.prototype.forEach.call(walkerRoot.querySelectorAll(selector), function (el) { containers.push(el); });
 			containers.forEach(function (el) {
 				var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
 				var n;
@@ -483,32 +491,42 @@
 					var v = obj[k];
 					var p = path ? path + '.' + k : k;
 					if (typeof v === 'string') {
-						var isLabelKey = /(label|optionalLabel|text|title|placeholder|message|description|name)/i.test(k);
-						var isValue = v.length > 1 && v.length < 120 && /[A-Za-z]/.test(v) && !/^https?:\/\//.test(v) && !/^\d/.test(v);
+						var isLabelKey = /(label|optionalLabel|requiredLabel|screenReaderLabel|ariaLabel|text|title|placeholder|message|description|buttonText|name)/i.test(k);
+						var isValue = v.length > 1 && v.length < 160 && /[A-Za-z]/.test(v) && !/^https?:\/\//.test(v) && !/^\d+([.,]\d+)?$/.test(v);
 						if (isLabelKey && isValue) pairs.push({ obj: obj, key: k, text: v });
-					} else if (v && typeof v === 'object' && !Array.isArray(v) && path.split('.').length < 4) {
+					} else if (v && typeof v === 'object' && !Array.isArray(v) && p.split('.').length < 5) {
 						collect(v, p);
 					}
 				});
 			}
 			collect(w, '');
-			pairs.slice(0, 40).forEach(function (item) {
+			pairs.slice(0, 60).forEach(function (item) {
+				if (item.obj[item.key] !== item.text) return;
 				translate(item.text, config.sourceLocale || 'en', config.locale).then(function (r) {
-					if (r && r.translated && r.translated !== item.text) item.obj[item.key] = r.translated;
+					if (r && r.translated && r.translated !== item.text && item.obj[item.key] === item.text) item.obj[item.key] = r.translated;
 				}).catch(function () {});
 			});
 		}
 
-		ready(function () { patchWcSettings(); scan(document.body); });
+		function scheduleWcPatches() {
+			[0, 300, 1000, 2500, 5000].forEach(function (ms) { setTimeout(patchWcSettings, ms); });
+		}
+
+		ready(function () { scheduleWcPatches(); scan(document.body); });
 		var obs = new MutationObserver(function (mutations) {
 			mutations.forEach(function (m) {
+				if (m.type === 'characterData' && m.target) { enqueue(m.target); return; }
 				Array.prototype.forEach.call(m.addedNodes || [], function (node) {
 					if (node.nodeType === Node.TEXT_NODE) enqueue(node);
 					else if (node.nodeType === Node.ELEMENT_NODE) scan(node);
 				});
 			});
 		});
-		if (document.body) obs.observe(document.body, { childList: true, subtree: true });
+		if (document.body) obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+		['wc-blocks_added_to_cart','updated_cart_totals','wc_fragments_refreshed','wc-blocks_checkout_set_active_payment_method','updated_checkout'].forEach(function (evt) {
+			document.body && document.body.addEventListener(evt, function () { setTimeout(function(){ scan(document.body); scheduleWcPatches(); }, 250); });
+		});
+		if (window.jQuery) { window.jQuery(document.body).on('wc_fragments_loaded wc_fragments_refreshed updated_cart_totals updated_checkout', function(){ setTimeout(function(){ scan(document.body); scheduleWcPatches(); }, 250); }); }
 	}
 
 	function setupVatFields() {
