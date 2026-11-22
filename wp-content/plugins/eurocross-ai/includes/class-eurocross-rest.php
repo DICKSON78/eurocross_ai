@@ -294,7 +294,8 @@ class EuroCross_AI_REST
     }
 
     /**
-     * Translation consumes quota, so visitors need an explicit site opt-in.
+     * Translation consumes quota; allow nonce-authenticated storefront requests
+     * so WooCommerce dynamic content can translate, but rate limit aggressively.
      *
      * @param  WP_REST_Request  $request  Request object.
      * @return true|WP_Error
@@ -306,15 +307,9 @@ class EuroCross_AI_REST
             return $nonce_check;
         }
 
-        if (! current_user_can('manage_options') && ! eurocross_ai_is_enabled('eurocross_allow_public_ai')) {
-            return new WP_Error(
-                'eurocross_public_ai_disabled',
-                __('Public AI requests are disabled on this site.', 'eurocross-ai'),
-                ['status' => 403]
-            );
-        }
+        $limit = current_user_can('manage_options') ? 60 : 30;
 
-        return $this->enforce_rate_limit($request, 'translation', 12, MINUTE_IN_SECONDS);
+        return $this->enforce_rate_limit($request, 'translation', $limit, MINUTE_IN_SECONDS);
     }
 
     /**

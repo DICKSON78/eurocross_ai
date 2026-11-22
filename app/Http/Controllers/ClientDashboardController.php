@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EuroCrossAuditLog;
 use App\Models\EuroCrossChatMessage;
+use App\Models\EuroCrossManualPayment;
 use App\Models\EuroCrossSettings;
 use App\Models\EuroCrossTransaction;
 use App\Models\EuroCrossTranslationUsage;
 use App\Models\EuroCrossVatSettings;
+use App\Models\EuroCrossWebhook;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
@@ -133,8 +136,38 @@ class ClientDashboardController extends Controller
     /** @return array<string, mixed> */
     private function billingData(EuroCrossSettings $settings): array
     {
+        $webhooks = EuroCrossWebhook::where('shop_id', $settings->id)
+            ->latest()
+            ->limit(15)
+            ->get(['id', 'provider', 'event', 'event_id', 'processed', 'processed_at', 'error', 'retry_count', 'created_at']);
+
+        $manualPayments = EuroCrossManualPayment::query()
+            ->where(function ($query) use ($settings): void {
+                $query->where('shop_id', $settings->id);
+                if (filled($settings->billing_email)) {
+                    $query->orWhereRaw('lower(email) = ?', [strtolower((string) $settings->billing_email)]);
+                }
+            })
+            ->latest()
+            ->limit(10)
+            ->get(['id', 'event_id', 'sale_id', 'subscription_id', 'email', 'plan', 'status', 'note', 'created_at']);
+
+        $billingAudit = EuroCrossAuditLog::where('shop_id', $settings->id)
+            ->where(function ($query): void {
+                $query->where('action', 'like', 'gumroad_%')
+                    ->orWhere('action', 'like', '%subscription%')
+                    ->orWhere('action', 'like', '%plan%')
+                    ->orWhere('action', 'like', '%checkout%');
+            })
+            ->latest()
+            ->limit(15)
+            ->get(['id', 'action', 'entity_type', 'entity_id', 'old_value', 'new_value', 'created_at']);
+
         return [
             'transactions' => EuroCrossTransaction::where('shop_id', $settings->id)->latest()->limit(30)->get(),
+            'webhooks' => $webhooks,
+            'manualPayments' => $manualPayments,
+            'billingAudit' => $billingAudit,
         ];
     }
 

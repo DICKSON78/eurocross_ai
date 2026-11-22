@@ -112,6 +112,71 @@
                 @endforelse
             </tbody></table></div>
         </div>
+
+        <div class="grid gap-4 lg:grid-cols-2">
+            <div class="table-card">
+                <div class="flex items-center justify-between border-b border-plum-900/6 px-6 py-4"><h2 class="text-sm font-bold text-plum-900">Webhook & billing events</h2><span class="text-xs text-plum-900/40">Ops visibility</span></div>
+                <div class="overflow-x-auto"><table class="w-full text-sm"><thead class="bg-plum-900/[0.03]"><tr>
+                    <th class="table-head">Date</th><th class="table-head">Event</th><th class="table-head">Status</th><th class="table-head">Note</th>
+                </tr></thead><tbody class="divide-y divide-plum-900/5">
+                    @forelse (($webhooks ?? collect()) as $wh)
+                        @php
+                            $isConflict = ($wh->error ?? '') === 'conflicting_active_subscription';
+                        @endphp
+                        <tr class="hover:bg-plum-900/[0.02] {{ $isConflict ? 'bg-amber-50/60' : '' }}">
+                            <td class="px-4 py-3 text-xs">{{ $wh->created_at?->format('Y-m-d H:i') }}</td>
+                            <td class="px-4 py-3">{{ $wh->provider }} / {{ $wh->event }}</td>
+                            <td class="px-4 py-3">
+                                @if ($wh->processed && ! $wh->error)
+                                    <span class="text-emerald-700 font-medium">Processed</span>
+                                @elseif ($isConflict)
+                                    <span class="text-amber-700 font-medium">Manual review</span>
+                                @elseif ($wh->error)
+                                    <span class="text-amber-700 font-medium">{{ str_replace('_', ' ', $wh->error) }}</span>
+                                @else
+                                    <span class="text-plum-900/60">Pending</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 text-xs text-plum-900/50">{{ $isConflict ? 'Active subscription conflict - do not auto-activate; review/refund if needed.' : ($wh->error ? str_replace('_', ' ', $wh->error) : '—') }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="4" class="px-4 py-8 text-center text-plum-900/40">No webhook events yet.</td></tr>
+                    @endforelse
+                </tbody></table></div>
+            </div>
+
+            <div class="table-card p-6">
+                <h2 class="text-sm font-bold text-plum-900">Manual review / conflict actions</h2>
+                <p class="mt-2 text-sm text-plum-900/60">If a payment arrives while another active subscription exists, EuroCross flags it for manual review instead of silently replacing the active subscription.</p>
+                <div class="mt-4 space-y-3 text-sm">
+                    <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                        <p class="font-semibold">When you see “Manual review / conflicting active subscription”:</p>
+                        <ol class="mt-2 list-decimal space-y-1 pl-5">
+                            <li>Confirm which subscription should be active in Gumroad.</li>
+                            <li>If the customer paid twice by mistake, issue refund in Gumroad.</li>
+                            <li>Only change plan after the current subscription ends/cancels as intended.</li>
+                            <li>Keep the audit record; do not share raw webhook payloads or secrets.</li>
+                        </ol>
+                    </div>
+                    <div class="rounded-xl border border-plum-900/8 p-4">
+                        <p class="font-semibold text-plum-900">Manual payments pending review</p>
+                        <div class="mt-3 space-y-2">
+                            @forelse (($manualPayments ?? collect()) as $mp)
+                                <div class="flex items-center justify-between gap-3 text-xs">
+                                    <div>
+                                        <p class="font-medium text-plum-900">{{ $mp->email }} · {{ ucfirst($mp->plan ?? 'plan') }}</p>
+                                        <p class="text-plum-900/50">{{ $mp->created_at?->format('Y-m-d H:i') }} · {{ $mp->status }}</p>
+                                    </div>
+                                    <span class="rounded-full px-2 py-1 {{ $mp->status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800' }}">{{ $mp->status }}</span>
+                                </div>
+                            @empty
+                                <p class="text-xs text-plum-900/40">No manual payments pending.</p>
+                            @endforelse
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     @elseif ($module === 'keys')
         @php
             $access = $settings->accessStatus();

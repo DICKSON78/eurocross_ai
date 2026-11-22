@@ -3,7 +3,7 @@
  * Plugin Name: EuroCross AI
  * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.2.3
+ * Version: 1.2.4
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Author: EuroCross AI
@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.2.3');
+    define('EUROCROSS_AI_VERSION', '1.2.4');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -604,8 +604,26 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
     }
 
     if (is_wp_error($response)) {
-        eurocross_ai_log('Translation failed', ['error' => $response->get_error_message()]);
-        set_transient($cache_key, $text, 5 * MINUTE_IN_SECONDS);
+        $error_data = $response->get_error_data();
+        $status = is_array($error_data) && isset($error_data['status']) ? absint($error_data['status']) : 0;
+        $message = sanitize_text_field((string) $response->get_error_message());
+
+        eurocross_ai_log('Translation failed', ['error' => $message, 'status' => $status]);
+
+        if (in_array($status, [401, 402, 403, 429], true)) {
+            set_transient(
+                'eurocross_ai_last_api_issue',
+                [
+                    'status' => $status,
+                    'message' => $message,
+                    'time' => time(),
+                ],
+                HOUR_IN_SECONDS
+            );
+            set_transient($cache_key, $text, 15 * MINUTE_IN_SECONDS);
+        } else {
+            set_transient($cache_key, $text, 5 * MINUTE_IN_SECONDS);
+        }
 
         return $text;
     }
@@ -616,6 +634,8 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
 
         return $text;
     }
+
+    delete_transient('eurocross_ai_last_api_issue');
 
     $allow_html = in_array($context, ['product_description', 'product_short_description', 'order_email', 'post_content', 'post_excerpt', 'widget_text', 'term_description'], true)
         || strpos((string) $context, 'block_') === 0;
@@ -1592,8 +1612,8 @@ class EuroCross_AI
     public function field_allow_public_ai()
     {
         ?>
-		<label><input type="checkbox" name="eurocross_allow_public_ai" value="1"<?php checked(eurocross_ai_is_enabled('eurocross_allow_public_ai')); ?> /> <?php esc_html_e('Allow visitors to make AI requests', 'eurocross-ai'); ?></label>
-		<p class="description"><?php esc_html_e('Disabled by default. Enabling this lets logged-out visitors use translation and chatbot shortcodes, which consumes your EuroCross AI quota. Keep it disabled unless those features are intentionally public.', 'eurocross-ai'); ?></p>
+		<label><input type="checkbox" name="eurocross_allow_public_ai" value="1"<?php checked(eurocross_ai_is_enabled('eurocross_allow_public_ai')); ?> /> <?php esc_html_e('Allow public chatbot/AI shortcode requests', 'eurocross-ai'); ?></label>
+		<p class="description"><?php esc_html_e('Controls public chatbot/AI shortcode access. Storefront translation requests used by the language switcher are nonce-protected and rate-limited so WooCommerce dynamic content can translate; they still consume your EuroCross plan quota.', 'eurocross-ai'); ?></p>
 		<?php
     }
 
@@ -3361,16 +3381,32 @@ class EuroCross_AI
         }
 
         $message = '';
+        $isCritical = false;
         if (trim((string) eurocross_ai_get_option('eurocross_api_key')) === '') {
             $message = __('Add your EuroCross AI API key on the settings page to enable translations and VAT checks.', 'eurocross-ai');
         } else {
-            $status = get_transient('eurocross_connection_status');
-            if (is_array($status) && isset($status['ok']) && (bool) $status['ok'] === false) {
-                $message = sprintf(
-                    /* translators: %s: API error message. */
-                    __('The last EuroCross AI connection check failed: %s', 'eurocross-ai'),
-                    sanitize_text_field((string) (isset($status['message']) ? $status['message'] : ''))
-                );
+            $lastIssue = get_transient('eurocross_ai_last_api_issue');
+            if (is_array($lastIssue) && ! empty($lastIssue['message'])) {
+                $statusCode = isset($lastIssue['status']) ? absint($lastIssue['status']) : 0;
+                $isCritical = in_array($statusCode, [401, 402, 403, 429], true);
+                $prefix = in_array($statusCode, [402, 403, 429], true)
+                    ? __('EuroCross translation is paused: ', 'eurocross-ai')
+                    : __('EuroCross API issue: ', 'eurocross-ai');
+                $message = $prefix.sanitize_text_field((string) $lastIssue['message']);
+                if (in_array($statusCode, [402, 403, 429], true)) {
+                    $message .= ' '.__('Check your EuroCross plan/quota, then reconnect or recharge. Existing cached translations may still display.', 'eurocross-ai');
+                }
+            }
+
+            if ($message === '') {
+                $status = get_transient('eurocross_connection_status');
+                if (is_array($status) && isset($status['ok']) && (bool) $status['ok'] === false) {
+                    $message = sprintf(
+                        /* translators: %s: API error message. */
+                        __('The last EuroCross AI connection check failed: %s', 'eurocross-ai'),
+                        sanitize_text_field((string) (isset($status['message']) ? $status['message'] : ''))
+                    );
+                }
             }
         }
 
@@ -3382,12 +3418,15 @@ class EuroCross_AI
             admin_url('admin-post.php?action=eurocross_dismiss_notice'),
             'eurocross_dismiss_notice'
         );
+        $notice_class = $isCritical ? 'notice notice-error eurocross-notice' : 'notice notice-warning is-dismissible eurocross-notice';
         ?>
-		<div class="notice notice-warning is-dismissible eurocross-notice">
+		<div class="<?php echo esc_attr($notice_class); ?>">
 			<p>
 				<?php echo esc_html($message); ?>
 				<a href="<?php echo esc_url(admin_url('admin.php?page=eurocross-ai-settings')); ?>"><?php esc_html_e('Open settings', 'eurocross-ai'); ?></a>
-				<a href="<?php echo esc_url($dismiss_url); ?>" class="eurocross-dismiss"><?php esc_html_e('Dismiss for a week', 'eurocross-ai'); ?></a>
+				<?php if (! $isCritical) { ?>
+					<a href="<?php echo esc_url($dismiss_url); ?>" class="eurocross-dismiss"><?php esc_html_e('Dismiss for a week', 'eurocross-ai'); ?></a>
+				<?php } ?>
 			</p>
 		</div>
 		<?php
