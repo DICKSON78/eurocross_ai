@@ -396,6 +396,121 @@
 		});
 	}
 
+	function shouldTranslateNode(node) {
+		if (!node || node.nodeType !== Node.TEXT_NODE) return false;
+		var parent = node.parentElement;
+		if (!parent) return false;
+		if (parent.closest('[data-eurocross-no-translate], script, style, noscript, code, pre')) return false;
+		if (parent.closest('[data-eurocross-translated="1"]')) return false;
+		var text = String(node.nodeValue || '').trim();
+		if (text.length < 2 || text.length > 300) return false;
+		if (!/[A-Za-z]/.test(text)) return false;
+		if (/^[\d\s\.,:;/%$€£¥\-–—()#@!?'"`]+$/.test(text)) return false;
+		return true;
+	}
+
+	function setupDynamicTranslation() {
+		if (!config.locale || config.locale === config.sourceLocale) return;
+		var queue = new Map();
+		var timer = null;
+		var inflight = false;
+		var seen = new WeakSet();
+
+		function flush() {
+			timer = null;
+			if (inflight || queue.size === 0) return;
+			inflight = true;
+			var entries = Array.prototype.slice.call(queue.entries()).slice(0, 12);
+			entries.forEach(function (e) { queue.delete(e[0]); });
+			var promises = entries.map(function (entry) {
+				return apiRequest('translate', {
+					text: entry[1].text,
+					source_lang: config.sourceLocale || 'en',
+					target_lang: config.locale
+				}).then(function (response) {
+					var data = response && response.data ? response.data : {};
+					var node = entry[1].node;
+					if (!node || !node.parentElement) return;
+					var translated = String(data.translated || '');
+					if (translated && translated !== entry[1].text) {
+						node.nodeValue = node.nodeValue.replace(entry[1].text, translated);
+						if (node.parentElement) node.parentElement.setAttribute('data-eurocross-translated', '1');
+					}
+				}).catch(function () {});
+			});
+			Promise.all(promises).then(function () {
+				inflight = false;
+				if (queue.size > 0) schedule();
+			});
+		}
+
+		function schedule() {
+			if (timer) return;
+			timer = setTimeout(flush, 250);
+		}
+
+		function enqueue(node) {
+			if (!shouldTranslateNode(node) || seen.has(node)) return;
+			var text = String(node.nodeValue || '').trim();
+			if (!text) return;
+			seen.add(node);
+			queue.set(node, { node: node, text: text });
+			schedule();
+		}
+
+		function scan(root) {
+			if (!root) return;
+			var walkerRoot = root.nodeType === Node.TEXT_NODE ? root.parentElement : root;
+			if (!walkerRoot || !walkerRoot.querySelectorAll) return;
+			var selector = '.wc-block-components-product-name, .wc-block-cart-item__product, .wc-block-components-totals-item, .wc-block-formatted-money-amount, .wc-block-components-checkbox__label, .wc-block-components-radio-control__label, .wc-block-components-title, .wc-block-components-notice-banner, .wc-block-components-validation-error, .wc-block-cart__empty-cart__title, .wp-block-woocommerce-cart, .wp-block-woocommerce-checkout, .wp-block-woocommerce-mini-cart-contents';
+			var containers = walkerRoot.matches && walkerRoot.matches(selector) ? [walkerRoot] : [];
+			var found = walkerRoot.querySelectorAll(selector);
+			Array.prototype.forEach.call(found, function (el) { containers.push(el); });
+			containers.forEach(function (el) {
+				var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+				var n;
+				while ((n = walker.nextNode())) enqueue(n);
+			});
+		}
+
+		function patchWcSettings() {
+			var w = window.wcSettings;
+			if (!w || typeof w !== 'object') return;
+			var pairs = [];
+			function collect(obj, path) {
+				if (!obj || typeof obj !== 'object') return;
+				Object.keys(obj).forEach(function (k) {
+					var v = obj[k];
+					var p = path ? path + '.' + k : k;
+					if (typeof v === 'string') {
+						var isLabelKey = /(label|optionalLabel|text|title|placeholder|message|description|name)/i.test(k);
+						var isValue = v.length > 1 && v.length < 120 && /[A-Za-z]/.test(v) && !/^https?:\/\//.test(v) && !/^\d/.test(v);
+						if (isLabelKey && isValue) pairs.push({ obj: obj, key: k, text: v });
+					} else if (v && typeof v === 'object' && !Array.isArray(v) && path.split('.').length < 4) {
+						collect(v, p);
+					}
+				});
+			}
+			collect(w, '');
+			pairs.slice(0, 40).forEach(function (item) {
+				translate(item.text, config.sourceLocale || 'en', config.locale).then(function (r) {
+					if (r && r.translated && r.translated !== item.text) item.obj[item.key] = r.translated;
+				}).catch(function () {});
+			});
+		}
+
+		ready(function () { patchWcSettings(); scan(document.body); });
+		var obs = new MutationObserver(function (mutations) {
+			mutations.forEach(function (m) {
+				Array.prototype.forEach.call(m.addedNodes || [], function (node) {
+					if (node.nodeType === Node.TEXT_NODE) enqueue(node);
+					else if (node.nodeType === Node.ELEMENT_NODE) scan(node);
+				});
+			});
+		});
+		if (document.body) obs.observe(document.body, { childList: true, subtree: true });
+	}
+
 	function setupVatFields() {
 		var toggles = document.querySelectorAll('[data-eurocross-vat-toggle]');
 		Array.prototype.forEach.call(toggles, function (toggle) {
@@ -544,6 +659,7 @@
 		setupLanguageSwitchers();
 		setupTranslationTriggers();
 		setupChatbots();
+		setupDynamicTranslation();
 		setupVatFields();
 	});
 

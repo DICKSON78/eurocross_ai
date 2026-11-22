@@ -1006,6 +1006,12 @@ class EuroCross_AI
         add_filter('single_term_title', [$this, 'translate_simple_frontend_text'], 20);
         add_filter('bloginfo', [$this, 'filter_bloginfo_frontend'], 20, 2);
         add_filter('gettext', [$this, 'translate_frontend_gettext'], 20, 3);
+        add_filter('ngettext', [$this, 'translate_frontend_ngettext'], 20, 5);
+        add_filter('get_the_date', [$this, 'translate_frontend_date'], 20, 3);
+        add_filter('get_the_time', [$this, 'translate_frontend_date'], 20, 3);
+        add_filter('get_the_modified_date', [$this, 'translate_frontend_date'], 20, 3);
+        add_filter('woocommerce_cart_item_name', [$this, 'translate_simple_frontend_text'], 20);
+        add_filter('woocommerce_order_item_name', [$this, 'translate_simple_frontend_text'], 20);
 
         add_action(EUROCROSS_AI_CRON_HOOK, [$this, 'run_daily_sync']);
 
@@ -2120,6 +2126,7 @@ class EuroCross_AI
                 'restUrl' => esc_url_raw(rest_url('eurocross/v1')),
                 'nonce' => wp_create_nonce('wp_rest'),
                 'locale' => $target,
+                'sourceLocale' => $source,
                 'languages' => eurocross_ai_get_languages(),
                 'canEdit' => current_user_can('manage_options') ? true : false,
                 'chatbotEnabled' => eurocross_ai_is_enabled('eurocross_chatbot_enabled') ? true : false,
@@ -2565,6 +2572,57 @@ class EuroCross_AI
         }
 
         return eurocross_ai_translate_text($translation, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+    }
+
+    /**
+     * Translate selected frontend ngettext strings.
+     *
+     * @param  string  $translation  Translated text.
+     * @param  string  $single  Singular form.
+     * @param  string  $plural  Plural form.
+     * @param  int  $number  Number.
+     * @param  string  $domain  Text domain.
+     * @return string
+     */
+    public function translate_frontend_ngettext($translation, $single, $plural, $number, $domain)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($translation) || trim($translation) === '') {
+            return $translation;
+        }
+
+        $single = is_string($single) ? trim($single) : '';
+        $plural = is_string($plural) ? trim($plural) : '';
+        $allowed = [
+            '%s item',
+            '%s items',
+            '%d item',
+            '%d items',
+            '%s comment',
+            '%s comments',
+            '%1$s comment',
+            '%1$s comments',
+        ];
+
+        if (! in_array($single, $allowed, true) && ! in_array($plural, $allowed, true)) {
+            return $translation;
+        }
+
+        return eurocross_ai_translate_text($translation, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+    }
+
+    /**
+     * Translate formatted frontend dates.
+     *
+     * @param  string  $date  Formatted date.
+     * @return string
+     */
+    public function translate_frontend_date($date)
+    {
+        if (! $this->should_translate_frontend() || ! is_string($date) || trim($date) === '') {
+            return $date;
+        }
+
+        return eurocross_ai_translate_text($date, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
     }
 
     /**
