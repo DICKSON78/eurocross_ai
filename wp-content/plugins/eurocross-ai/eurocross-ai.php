@@ -3,7 +3,7 @@
  * Plugin Name: EuroCross AI
  * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.2.2
+ * Version: 1.2.3
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Author: EuroCross AI
@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.2.2');
+    define('EUROCROSS_AI_VERSION', '1.2.3');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -1015,6 +1015,8 @@ class EuroCross_AI
         add_filter('get_the_modified_time', [$this, 'translate_frontend_date'], 20, 3);
         add_filter('get_comment_date', [$this, 'translate_frontend_date'], 20, 3);
         add_filter('get_comment_time', [$this, 'translate_frontend_date'], 20, 3);
+        add_filter('wp_date', [$this, 'translate_wp_date'], 20, 4);
+        add_filter('date_i18n', [$this, 'translate_date_i18n'], 20, 4);
         add_filter('woocommerce_cart_item_name', [$this, 'translate_simple_frontend_text'], 20);
         add_filter('woocommerce_order_item_name', [$this, 'translate_simple_frontend_text'], 20);
         add_filter('woocommerce_add_to_cart_fragments', [$this, 'translate_wc_fragments'], 999, 1);
@@ -2695,21 +2697,38 @@ class EuroCross_AI
         }
 
         $allowed = isset($allow[$text]) || isset($allow[$translation]);
+        $shielded = $translation;
+        $placeholders = [];
         if (! $allowed) {
-            $looksUi = strlen($text) <= 90
+            $looksUi = strlen($text) <= 120
                 && preg_match('/[A-Za-z]/', $text)
                 && ! preg_match('/https?:\/\/|<[^>]+>|[{}\[\]$=\\\\|;]/', $text)
                 && ! preg_match('/^(wp_|wc_|woocommerce_|data-|aria-)/i', $text)
-                && ! preg_match('/[\r\n\t]{2,}/', $text)
-                && preg_match('/^[\p{L}\p{N}\s\.,:;!?\-–—()\'"\/%#&+@*]+$/u', $translation);
-            $allowed = $looksUi;
+                && ! preg_match('/[\r\n\t]{2,}/', $text);
+            if ($looksUi) {
+                $shielded = preg_replace_callback('/%(?:\d+\$)?[sd%]|\\{[a-zA-Z0-9_]+\\}/', function ($m) use (&$placeholders) {
+                    if ($m[0] === '%%') {
+                        return '%%';
+                    }
+                    $token = '__ECXPH'.count($placeholders).'__';
+                    $placeholders[$token] = $m[0];
+
+                    return $token;
+                }, (string) $translation);
+                $allowed = (bool) preg_match('/^[\p{L}\p{N}\s\.,:;!?\-–—()\'"\/%#&+@*_]+$/u', $shielded);
+            }
         }
 
         if (! $allowed) {
             return $translation;
         }
 
-        return eurocross_ai_translate_text($translation, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+        $translated = eurocross_ai_translate_text($shielded, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+        if ($placeholders !== []) {
+            $translated = strtr((string) $translated, $placeholders);
+        }
+
+        return $translated;
     }
 
     /**
@@ -2738,20 +2757,37 @@ class EuroCross_AI
         ];
 
         $isAllowed = in_array($single, $allowed, true) || in_array($plural, $allowed, true);
+        $shielded = $translation;
+        $placeholders = [];
         if (! $isAllowed) {
-            $looksUi = strlen($single) <= 90 && strlen($plural) <= 90
+            $looksUi = strlen($single) <= 120 && strlen($plural) <= 120
                 && preg_match('/[A-Za-z]/', $single.$plural)
                 && ! preg_match('/https?:\/\/|<[^>]+>|[{}\[\]$=\\\\|;]/', $single.$plural)
-                && ! preg_match('/^(wp_|wc_|woocommerce_|data-|aria-)/i', $single.$plural)
-                && preg_match('/^[\p{L}\p{N}\s\.,:;!?\-–—()\'"\/%#&+@*]+$/u', $translation);
-            $isAllowed = $looksUi;
+                && ! preg_match('/^(wp_|wc_|woocommerce_|data-|aria-)/i', $single.$plural);
+            if ($looksUi) {
+                $shielded = preg_replace_callback('/%(?:\d+\$)?[sd%]|\\{[a-zA-Z0-9_]+\\}/', function ($m) use (&$placeholders) {
+                    if ($m[0] === '%%') {
+                        return '%%';
+                    }
+                    $token = '__ECXPH'.count($placeholders).'__';
+                    $placeholders[$token] = $m[0];
+
+                    return $token;
+                }, (string) $translation);
+                $isAllowed = (bool) preg_match('/^[\p{L}\p{N}\s\.,:;!?\-–—()\'"\/%#&+@*_]+$/u', $shielded);
+            }
         }
 
         if (! $isAllowed) {
             return $translation;
         }
 
-        return eurocross_ai_translate_text($translation, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+        $translated = eurocross_ai_translate_text($shielded, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'frontend_text');
+        if ($placeholders !== []) {
+            $translated = strtr((string) $translated, $placeholders);
+        }
+
+        return $translated;
     }
 
     /**
@@ -2837,6 +2873,104 @@ class EuroCross_AI
         }
 
         return eurocross_ai_translate_text($date, $this->get_source_locale(), $target, 'frontend_text');
+    }
+
+    /**
+     * Translate wp_date() output on frontend.
+     *
+     * @param  string|false  $date  Formatted date.
+     * @param  string  $format  Format.
+     * @param  int  $timestamp  Timestamp.
+     * @param  DateTimeZone|null  $timezone  Timezone.
+     * @return string|false
+     */
+    public function translate_wp_date($date, $format = '', $timestamp = 0, $timezone = null)
+    {
+        return $this->translate_date_filter_output($date, (string) $format, (int) $timestamp, $timezone, false);
+    }
+
+    /**
+     * Translate date_i18n() output on frontend.
+     *
+     * @param  string  $date  Formatted date.
+     * @param  string  $format  Format.
+     * @param  int  $timestamp  Timestamp.
+     * @param  bool  $gmt  GMT flag.
+     * @return string
+     */
+    public function translate_date_i18n($date, $format = '', $timestamp = 0, $gmt = false)
+    {
+        return $this->translate_date_filter_output($date, (string) $format, (int) $timestamp, null, (bool) $gmt);
+    }
+
+    /**
+     * Shared date filter handler with recursion guard.
+     *
+     * @param  mixed  $date  Date output.
+     * @param  string  $format  Format.
+     * @param  int  $timestamp  Timestamp.
+     * @param  mixed  $timezone  Timezone.
+     * @param  bool  $gmt  GMT.
+     * @return mixed
+     */
+    private function translate_date_filter_output($date, string $format, int $timestamp, $timezone, bool $gmt)
+    {
+        static $inDateFilter = false;
+
+        if ($inDateFilter || ! $this->should_translate_frontend() || ! is_string($date) || trim($date) === '') {
+            return $date;
+        }
+
+        $target = eurocross_ai_get_current_locale();
+        $source = $this->get_source_locale();
+        if ($target === '' || $source === '' || $target === $source) {
+            return $date;
+        }
+
+        // Quick deterministic pass first.
+        $mapped = $this->translate_date_string_fallback($date, $target);
+        if ($mapped !== $date) {
+            return $mapped;
+        }
+
+        // Only attempt locale-aware reformat for reasonable timestamps and formats.
+        $inDateFilter = true;
+        try {
+            if ($timestamp > 0 && $format !== '') {
+                $wp_locale = $this->map_wp_locale($target);
+                if ($wp_locale !== '') {
+                    $switched = function_exists('switch_to_locale') && switch_to_locale($wp_locale);
+                    try {
+                        if ($timezone instanceof DateTimeZone && function_exists('wp_date')) {
+                            $localized = wp_date($format, $timestamp, $timezone);
+                        } elseif (function_exists('wp_date')) {
+                            $localized = wp_date($format, $timestamp, $gmt ? new DateTimeZone('UTC') : wp_timezone());
+                        } else {
+                            $localized = date_i18n($format, $timestamp, $gmt);
+                        }
+                        if (is_string($localized) && trim($localized) !== '' && $localized !== $date) {
+                            return $localized;
+                        }
+                    } finally {
+                        if ($switched) {
+                            restore_previous_locale();
+                        }
+                    }
+                }
+            }
+
+            // AI fallback only for short, date-like strings to control cost.
+            if (strlen($date) <= 80 && preg_match('/\d|January|February|March|April|May|June|July|August|September|October|November|December|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|Mon|Tue|Wed|Thu|Fri|Sat|Sun/i', $date)) {
+                $translated = eurocross_ai_translate_text($date, $source, $target, 'frontend_text');
+                if (is_string($translated) && trim($translated) !== '') {
+                    return $translated;
+                }
+            }
+        } finally {
+            $inDateFilter = false;
+        }
+
+        return $date;
     }
 
     /**
