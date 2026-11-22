@@ -577,12 +577,20 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
         && ! (defined('REST_REQUEST') && REST_REQUEST)
         && ! (defined('WP_CLI') && WP_CLI);
 
-    if ($is_frontend_render && $remote_calls >= 10) {
+    $is_main_content = $context === 'post_content'
+        || $context === 'post_excerpt'
+        || $context === 'product_description'
+        || $context === 'product_short_description'
+        || strpos((string) $context, 'block_') === 0;
+
+    if ($is_frontend_render && ! $is_main_content && $remote_calls >= 30) {
         return $text;
     }
 
     $response = eurocross_ai_get_api()->translate($text, $source, $target);
-    $remote_calls++;
+    if ($is_frontend_render && ! $is_main_content) {
+        $remote_calls++;
+    }
 
     if (is_wp_error($response)) {
         eurocross_ai_log('Translation failed', ['error' => $response->get_error_message()]);
@@ -593,7 +601,7 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
 
     $translated = isset($response['data']['translated']) ? (string) $response['data']['translated'] : '';
     if ($translated === '') {
-        set_transient($cache_key, $text, 5 * MINUTE_IN_SECONDS);
+        set_transient($cache_key, $text, MINUTE_IN_SECONDS);
 
         return $text;
     }
@@ -2377,7 +2385,64 @@ class EuroCross_AI
             return $html;
         }
 
-        return eurocross_ai_translate_text($html, $this->get_source_locale(), eurocross_ai_get_current_locale(), $context);
+        $source = $this->get_source_locale();
+        $target = eurocross_ai_get_current_locale();
+
+        if (class_exists('DOMDocument')) {
+            $previous = libxml_use_internal_errors(true);
+            $document = new DOMDocument('1.0', 'UTF-8');
+            $wrapped = '<?xml encoding="utf-8" ?><div id="eurocross-root">'.$html.'</div>';
+            $loaded = $document->loadHTML($wrapped, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+
+            if ($loaded) {
+                $root = $document->getElementById('eurocross-root');
+                if ($root instanceof DOMNode) {
+                    $xpath = new DOMXPath($document);
+                    $nodes = $xpath->query('.//text()', $root);
+                    $changed = false;
+
+                    if ($nodes instanceof DOMNodeList) {
+                        foreach ($nodes as $node) {
+                            if (! $node instanceof DOMText) {
+                                continue;
+                            }
+
+                            $original = $node->nodeValue;
+                            if (! is_string($original)) {
+                                continue;
+                            }
+
+                            if (trim($original) === '' || ! preg_match('/[\p{L}\p{N}]/u', $original)) {
+                                continue;
+                            }
+
+                            $translated = eurocross_ai_translate_text($original, $source, $target, $context);
+                            if (is_string($translated) && $translated !== '' && $translated !== $original) {
+                                $node->nodeValue = $translated;
+                                $changed = true;
+                            }
+                        }
+                    }
+
+                    if ($changed) {
+                        $result = '';
+                        foreach ($root->childNodes as $child) {
+                            $result .= $document->saveHTML($child);
+                        }
+
+                        libxml_clear_errors();
+                        libxml_use_internal_errors($previous);
+
+                        return $result !== '' ? $result : $html;
+                    }
+                }
+            }
+
+            libxml_clear_errors();
+            libxml_use_internal_errors($previous);
+        }
+
+        return eurocross_ai_translate_text($html, $source, $target, $context);
     }
 
     /**
