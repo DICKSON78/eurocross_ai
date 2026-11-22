@@ -571,6 +571,16 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
         return $cached;
     }
 
+    $fallback_cache_key = 'eurocross_translation_'.md5($text.'|'.$source.'|'.$target.'|frontend_text');
+    if ($fallback_cache_key !== $cache_key) {
+        $fallback_cached = get_transient($fallback_cache_key);
+        if ($fallback_cached !== false && is_string($fallback_cached)) {
+            set_transient($cache_key, $fallback_cached, DAY_IN_SECONDS);
+
+            return $fallback_cached;
+        }
+    }
+
     $is_frontend_render = ! is_admin()
         && ! wp_doing_ajax()
         && ! wp_doing_cron()
@@ -612,6 +622,9 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
     $translated = $allow_html ? wp_kses_post($translated) : sanitize_text_field($translated);
 
     set_transient($cache_key, $translated, DAY_IN_SECONDS);
+    if ($fallback_cache_key !== $cache_key) {
+        set_transient($fallback_cache_key, $translated, DAY_IN_SECONDS);
+    }
 
     return $translated;
 }
