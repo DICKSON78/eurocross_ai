@@ -5,7 +5,7 @@ Tags: translation, woocommerce, multilingual, vat, chatbot
 Requires at least: 6.2
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.2.1
+Stable tag: 1.2.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -96,6 +96,12 @@ Uninstalling the plugin deletes its options, transients, cached translations, st
 3. A WooCommerce storefront with the language switcher and VAT checkout field.
 
 == Changelog ==
+
+= 1.2.2 =
+* Added server-side translation for classic WooCommerce cart fragments and selected Woo Store API REST responses.
+* Broadened frontend gettext/ngettext translation with safer UI-string heuristics across domains.
+* Added deterministic date name fallback for month/day localization when WP locale packs are unavailable.
+* Added server-provided wcSettings patch map and improved client re-patching for dynamic Woo blocks.
 
 = 1.2.1 =
 * Improved frontend translation coverage for WooCommerce blocks, dynamic mini-cart/checkout fragments, and selected gettext strings.

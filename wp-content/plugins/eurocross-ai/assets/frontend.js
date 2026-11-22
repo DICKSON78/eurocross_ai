@@ -484,6 +484,7 @@
 		function patchWcSettings() {
 			var w = window.wcSettings;
 			if (!w || typeof w !== 'object') return;
+			var serverPatches = config.wcPatches || {};
 			var pairs = [];
 			function collect(obj, path) {
 				if (!obj || typeof obj !== 'object') return;
@@ -491,6 +492,7 @@
 					var v = obj[k];
 					var p = path ? path + '.' + k : k;
 					if (typeof v === 'string') {
+						if (serverPatches[v] && obj[k] === v) { obj[k] = serverPatches[v]; return; }
 						var isLabelKey = /(label|optionalLabel|requiredLabel|screenReaderLabel|ariaLabel|text|title|placeholder|message|description|buttonText|name)/i.test(k);
 						var isValue = v.length > 1 && v.length < 160 && /[A-Za-z]/.test(v) && !/^https?:\/\//.test(v) && !/^\d+([.,]\d+)?$/.test(v);
 						if (isLabelKey && isValue) pairs.push({ obj: obj, key: k, text: v });
@@ -502,6 +504,7 @@
 			collect(w, '');
 			pairs.slice(0, 60).forEach(function (item) {
 				if (item.obj[item.key] !== item.text) return;
+				if (serverPatches[item.text]) { item.obj[item.key] = serverPatches[item.text]; return; }
 				translate(item.text, config.sourceLocale || 'en', config.locale).then(function (r) {
 					if (r && r.translated && r.translated !== item.text && item.obj[item.key] === item.text) item.obj[item.key] = r.translated;
 				}).catch(function () {});

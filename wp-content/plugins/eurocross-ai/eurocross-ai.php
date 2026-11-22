@@ -3,7 +3,7 @@
  * Plugin Name: EuroCross AI
  * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.2.1
+ * Version: 1.2.2
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Author: EuroCross AI
@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.2.1');
+    define('EUROCROSS_AI_VERSION', '1.2.2');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -594,7 +594,7 @@ function eurocross_ai_translate_text($text, $source, $target, $context = '')
         || $context === 'product_short_description'
         || strpos((string) $context, 'block_') === 0;
 
-    if ($is_frontend_render && ! $is_main_content && $remote_calls >= 30) {
+    if ($is_frontend_render && ! $is_main_content && $remote_calls >= 60) {
         return $text;
     }
 
@@ -1017,6 +1017,9 @@ class EuroCross_AI
         add_filter('get_comment_time', [$this, 'translate_frontend_date'], 20, 3);
         add_filter('woocommerce_cart_item_name', [$this, 'translate_simple_frontend_text'], 20);
         add_filter('woocommerce_order_item_name', [$this, 'translate_simple_frontend_text'], 20);
+        add_filter('woocommerce_add_to_cart_fragments', [$this, 'translate_wc_fragments'], 999, 1);
+        add_filter('woocommerce_update_order_review_fragments', [$this, 'translate_wc_fragments'], 999, 1);
+        add_filter('rest_post_dispatch', [$this, 'translate_wc_store_rest_response'], 20, 3);
 
         add_action(EUROCROSS_AI_CRON_HOOK, [$this, 'run_daily_sync']);
 
@@ -2118,9 +2121,25 @@ class EuroCross_AI
             'language' => __('Language', 'eurocross-ai'),
         ];
 
+        $wcPatches = [];
         if ($target !== '' && $target !== $source) {
             foreach ($strings as $key => $value) {
                 $strings[$key] = eurocross_ai_translate_text((string) $value, $source, $target, 'frontend_text');
+            }
+
+            $wcSources = [
+                'Subtotal', 'Total', 'Shipping', 'Tax', 'Discount', 'Order total', 'Place order',
+                'Proceed to Checkout', 'Add to cart', 'View cart', 'Cart', 'Checkout', 'My account',
+                'Your cart is currently empty!', 'Browse store', 'New in store', 'Remove item',
+                'Apply', 'Coupon code', 'Coupon code or gift card', 'Product', 'Price', 'Quantity',
+                'Order summary', 'Payment options', 'Billing address', 'Shipping address', 'Contact information',
+                'Add a note to your order', 'Free shipping', 'Local pickup', 'Shipping options',
+            ];
+            foreach ($wcSources as $wcText) {
+                $translated = eurocross_ai_translate_text($wcText, $source, $target, 'frontend_text');
+                if (is_string($translated) && $translated !== '' && $translated !== $wcText) {
+                    $wcPatches[$wcText] = $translated;
+                }
             }
         }
 
@@ -2136,6 +2155,7 @@ class EuroCross_AI
                 'canEdit' => current_user_can('manage_options') ? true : false,
                 'chatbotEnabled' => eurocross_ai_is_enabled('eurocross_chatbot_enabled') ? true : false,
                 'strings' => $strings,
+                'wcPatches' => $wcPatches,
             ]
         );
     }
@@ -2198,7 +2218,11 @@ class EuroCross_AI
      */
     private function should_translate_frontend()
     {
-        if (is_admin() || wp_doing_ajax() || wp_doing_cron() || (defined('REST_REQUEST') && REST_REQUEST)) {
+        if (is_admin() || wp_doing_cron() || (defined('REST_REQUEST') && REST_REQUEST)) {
+            return false;
+        }
+
+        if (wp_doing_ajax() && ! $this->is_safe_ajax_translation_request()) {
             return false;
         }
 
@@ -2210,6 +2234,18 @@ class EuroCross_AI
         $source = $this->get_source_locale();
 
         return $current !== '' && $source !== '' && $current !== $source;
+    }
+
+    /**
+     * Allow server-side translation only for safe WooCommerce fragment AJAX requests.
+     */
+    private function is_safe_ajax_translation_request(): bool
+    {
+        $action = isset($_REQUEST['action']) ? sanitize_key((string) wp_unslash($_REQUEST['action'])) : '';
+        $wc_ajax = isset($_REQUEST['wc-ajax']) ? sanitize_key((string) wp_unslash($_REQUEST['wc-ajax'])) : '';
+
+        return in_array($action, ['woocommerce_get_refreshed_fragments', 'woocommerce_add_to_cart', 'woocommerce_remove_from_cart'], true)
+            || in_array($wc_ajax, ['get_refreshed_fragments', 'apply_coupon', 'remove_coupon', 'update_shipping_method'], true);
     }
 
     /**
@@ -2527,6 +2563,103 @@ class EuroCross_AI
     }
 
     /**
+     * Translate WooCommerce cart/checkout AJAX fragments server-side.
+     *
+     * @param  array<string, string>  $fragments  Fragments.
+     * @return array<string, string>
+     */
+    public function translate_wc_fragments($fragments)
+    {
+        if (! $this->should_translate_frontend() || ! is_array($fragments)) {
+            return $fragments;
+        }
+
+        foreach ($fragments as $key => $html) {
+            if (! is_string($html) || trim($html) === '' || strlen($html) > 20000) {
+                continue;
+            }
+
+            $fragments[$key] = eurocross_ai_translate_text($html, $this->get_source_locale(), eurocross_ai_get_current_locale(), 'block_html');
+        }
+
+        return $fragments;
+    }
+
+    /**
+     * Translate selected WooCommerce Store API responses server-side.
+     *
+     * @param  WP_REST_Response  $result  Response.
+     * @param  WP_REST_Server  $server  Server.
+     * @param  WP_REST_Request  $request  Request.
+     * @return WP_REST_Response
+     */
+    public function translate_wc_store_rest_response($result, $server, $request)
+    {
+        if (! ($result instanceof WP_REST_Response)) {
+            return $result;
+        }
+
+        $route = $request instanceof WP_REST_Request ? (string) $request->get_route() : '';
+        if (! preg_match('#^/wc/store/v1/(cart|checkout|batch|products)#', $route)) {
+            return $result;
+        }
+
+        $target = eurocross_ai_get_current_locale();
+        $source = $this->get_source_locale();
+        if ($target === '' || $source === '' || $target === $source) {
+            return $result;
+        }
+
+        $data = $result->get_data();
+        if (! is_array($data)) {
+            return $result;
+        }
+
+        $translatedCount = 0;
+        $max = 80;
+        $allowedKeys = ['name', 'description', 'short_description', 'label', 'text', 'title', 'message', 'aria-label', 'inner_html'];
+        $skipKeys = ['id', 'key', 'slug', 'permalink', 'src', 'href', 'url', 'type', 'sku', 'code', 'currency', 'currency_code', 'currency_symbol', 'currency_minor_unit', 'price', 'regular_price', 'sale_price', 'prices', 'totals', 'extensions'];
+
+        $walker = function ($value, $key = '') use (&$walker, &$translatedCount, $max, $allowedKeys, $skipKeys, $source, $target) {
+            if ($translatedCount >= $max) {
+                return $value;
+            }
+            if (is_array($value)) {
+                foreach ($value as $k => $v) {
+                    $value[$k] = $walker($v, (string) $k);
+                }
+
+                return $value;
+            }
+            if (! is_string($value) || trim($value) === '' || strlen($value) > 500) {
+                return $value;
+            }
+            $k = strtolower((string) $key);
+            if (in_array($k, $skipKeys, true)) {
+                return $value;
+            }
+            $isAllowedKey = in_array($k, $allowedKeys, true) || preg_match('/(name|label|title|description|message|text)$/', $k);
+            $looksText = preg_match('/[A-Za-z]/', $value) && ! preg_match('/https?:\/\/|<[^>]+>/', $value);
+            if (! $isAllowedKey || ! $looksText) {
+                return $value;
+            }
+
+            $translated = eurocross_ai_translate_text($value, $source, $target, 'frontend_text');
+            if (is_string($translated) && $translated !== '' && $translated !== $value) {
+                $translatedCount++;
+
+                return $translated;
+            }
+
+            return $value;
+        };
+
+        $result->set_data($walker($data));
+
+        return $result;
+    }
+
+    /**
      * Translate selected frontend gettext strings (theme/Woo UI labels).
      *
      * @param  string  $translation  Translated text.
@@ -2563,12 +2696,13 @@ class EuroCross_AI
 
         $allowed = isset($allow[$text]) || isset($allow[$translation]);
         if (! $allowed) {
-            $safeDomains = ['woocommerce', 'woocommerce-blocks', 'wc-blocks', 'default', 'twentytwentyfour', 'twentytwentythree', 'twentytwentytwo'];
-            $looksUi = strlen($text) <= 80
+            $looksUi = strlen($text) <= 90
                 && preg_match('/[A-Za-z]/', $text)
-                && ! preg_match('/https?:\/\/|<[^>]+>|[{}$]/', $text)
-                && ! preg_match('/^(wp_|woocommerce_|wc_)/', $text);
-            $allowed = in_array($domain, $safeDomains, true) && $looksUi;
+                && ! preg_match('/https?:\/\/|<[^>]+>|[{}\[\]$=\\\\|;]/', $text)
+                && ! preg_match('/^(wp_|wc_|woocommerce_|data-|aria-)/i', $text)
+                && ! preg_match('/[\r\n\t]{2,}/', $text)
+                && preg_match('/^[\p{L}\p{N}\s\.,:;!?\-–—()\'"\/%#&+@*]+$/u', $translation);
+            $allowed = $looksUi;
         }
 
         if (! $allowed) {
@@ -2605,10 +2739,12 @@ class EuroCross_AI
 
         $isAllowed = in_array($single, $allowed, true) || in_array($plural, $allowed, true);
         if (! $isAllowed) {
-            $safeDomains = ['woocommerce', 'woocommerce-blocks', 'wc-blocks', 'default'];
-            $looksUi = strlen($single) <= 80 && strlen($plural) <= 80
-                && ! preg_match('/https?:\/\/|<[^>]+>|[{}$]/', $single.$plural);
-            $isAllowed = in_array($domain, $safeDomains, true) && $looksUi;
+            $looksUi = strlen($single) <= 90 && strlen($plural) <= 90
+                && preg_match('/[A-Za-z]/', $single.$plural)
+                && ! preg_match('/https?:\/\/|<[^>]+>|[{}\[\]$=\\\\|;]/', $single.$plural)
+                && ! preg_match('/^(wp_|wc_|woocommerce_|data-|aria-)/i', $single.$plural)
+                && preg_match('/^[\p{L}\p{N}\s\.,:;!?\-–—()\'"\/%#&+@*]+$/u', $translation);
+            $isAllowed = $looksUi;
         }
 
         if (! $isAllowed) {
@@ -2686,13 +2822,18 @@ class EuroCross_AI
                     ? wp_date($format, (int) $timestamp, wp_timezone())
                     : date_i18n($format, (int) $timestamp);
                 if (is_string($localized) && trim($localized) !== '') {
-                    return $localized;
+                    $date = $localized;
                 }
             } finally {
                 if ($switched) {
                     restore_previous_locale();
                 }
             }
+        }
+
+        $mapped = $this->translate_date_string_fallback($date, $target);
+        if ($mapped !== $date) {
+            return $mapped;
         }
 
         return eurocross_ai_translate_text($date, $this->get_source_locale(), $target, 'frontend_text');
@@ -2717,6 +2858,43 @@ class EuroCross_AI
         ];
 
         return $map[$locale] ?? '';
+    }
+
+    /**
+     * Deterministic month/day translation fallback for dates.
+     */
+    private function translate_date_string_fallback(string $date, string $locale): string
+    {
+        $months = [
+            'fr' => ['January' => 'janvier', 'February' => 'février', 'March' => 'mars', 'April' => 'avril', 'May' => 'mai', 'June' => 'juin', 'July' => 'juillet', 'August' => 'août', 'September' => 'septembre', 'October' => 'octobre', 'November' => 'novembre', 'December' => 'décembre', 'Jan' => 'janv.', 'Feb' => 'févr.', 'Mar' => 'mars', 'Apr' => 'avr.', 'Jun' => 'juin', 'Jul' => 'juil.', 'Aug' => 'août', 'Sep' => 'sept.', 'Oct' => 'oct.', 'Nov' => 'nov.', 'Dec' => 'déc.'],
+            'de' => ['January' => 'Januar', 'February' => 'Februar', 'March' => 'März', 'April' => 'April', 'May' => 'Mai', 'June' => 'Juni', 'July' => 'Juli', 'August' => 'August', 'September' => 'September', 'October' => 'Oktober', 'November' => 'November', 'December' => 'Dezember', 'Jan' => 'Jan.', 'Feb' => 'Feb.', 'Mar' => 'März', 'Apr' => 'Apr.', 'Jun' => 'Juni', 'Jul' => 'Juli', 'Aug' => 'Aug.', 'Sep' => 'Sep.', 'Oct' => 'Okt.', 'Nov' => 'Nov.', 'Dec' => 'Dez.'],
+            'es' => ['January' => 'enero', 'February' => 'febrero', 'March' => 'marzo', 'April' => 'abril', 'May' => 'mayo', 'June' => 'junio', 'July' => 'julio', 'August' => 'agosto', 'September' => 'septiembre', 'October' => 'octubre', 'November' => 'noviembre', 'December' => 'diciembre', 'Jan' => 'ene.', 'Feb' => 'feb.', 'Mar' => 'mar.', 'Apr' => 'abr.', 'Jun' => 'jun.', 'Jul' => 'jul.', 'Aug' => 'ago.', 'Sep' => 'sept.', 'Oct' => 'oct.', 'Nov' => 'nov.', 'Dec' => 'dic.'],
+            'it' => ['January' => 'gennaio', 'February' => 'febbraio', 'March' => 'marzo', 'April' => 'aprile', 'May' => 'maggio', 'June' => 'giugno', 'July' => 'luglio', 'August' => 'agosto', 'September' => 'settembre', 'October' => 'ottobre', 'November' => 'novembre', 'December' => 'dicembre', 'Jan' => 'gen', 'Feb' => 'feb', 'Mar' => 'mar', 'Apr' => 'apr', 'Jun' => 'giu', 'Jul' => 'lug', 'Aug' => 'ago', 'Sep' => 'set', 'Oct' => 'ott', 'Nov' => 'nov', 'Dec' => 'dic'],
+            'pt' => ['January' => 'janeiro', 'February' => 'fevereiro', 'March' => 'março', 'April' => 'abril', 'May' => 'maio', 'June' => 'junho', 'July' => 'julho', 'August' => 'agosto', 'September' => 'setembro', 'October' => 'outubro', 'November' => 'novembro', 'December' => 'dezembro', 'Jan' => 'jan.', 'Feb' => 'fev.', 'Mar' => 'mar.', 'Apr' => 'abr.', 'Jun' => 'jun.', 'Jul' => 'jul.', 'Aug' => 'ago.', 'Sep' => 'set.', 'Oct' => 'out.', 'Nov' => 'nov.', 'Dec' => 'dez.'],
+            'nl' => ['January' => 'januari', 'February' => 'februari', 'March' => 'maart', 'April' => 'april', 'May' => 'mei', 'June' => 'juni', 'July' => 'juli', 'August' => 'augustus', 'September' => 'september', 'October' => 'oktober', 'November' => 'november', 'December' => 'december', 'Jan' => 'jan.', 'Feb' => 'feb.', 'Mar' => 'mrt.', 'Apr' => 'apr.', 'Jun' => 'jun.', 'Jul' => 'jul.', 'Aug' => 'aug.', 'Sep' => 'sep.', 'Oct' => 'okt.', 'Nov' => 'nov.', 'Dec' => 'dec.'],
+            'ar' => ['January' => 'يناير', 'February' => 'فبراير', 'March' => 'مارس', 'April' => 'أبريل', 'May' => 'مايو', 'June' => 'يونيو', 'July' => 'يوليو', 'August' => 'أغسطس', 'September' => 'سبتمبر', 'October' => 'أكتوبر', 'November' => 'نوفمبر', 'December' => 'ديسمبر', 'Jan' => 'يناير', 'Feb' => 'فبراير', 'Mar' => 'مارس', 'Apr' => 'أبريل', 'Jun' => 'يونيو', 'Jul' => 'يوليو', 'Aug' => 'أغسطس', 'Sep' => 'سبتمبر', 'Oct' => 'أكتوبر', 'Nov' => 'نوفمبر', 'Dec' => 'ديسمبر'],
+            'zh' => ['January' => '一月', 'February' => '二月', 'March' => '三月', 'April' => '四月', 'May' => '五月', 'June' => '六月', 'July' => '七月', 'August' => '八月', 'September' => '九月', 'October' => '十月', 'November' => '十一月', 'December' => '十二月', 'Jan' => '1月', 'Feb' => '2月', 'Mar' => '3月', 'Apr' => '4月', 'Jun' => '6月', 'Jul' => '7月', 'Aug' => '8月', 'Sep' => '9月', 'Oct' => '10月', 'Nov' => '11月', 'Dec' => '12月'],
+            'ja' => ['January' => '1月', 'February' => '2月', 'March' => '3月', 'April' => '4月', 'May' => '5月', 'June' => '6月', 'July' => '7月', 'August' => '8月', 'September' => '9月', 'October' => '10月', 'November' => '11月', 'December' => '12月', 'Jan' => '1月', 'Feb' => '2月', 'Mar' => '3月', 'Apr' => '4月', 'Jun' => '6月', 'Jul' => '7月', 'Aug' => '8月', 'Sep' => '9月', 'Oct' => '10月', 'Nov' => '11月', 'Dec' => '12月'],
+        ];
+        $days = [
+            'fr' => ['Monday' => 'lundi', 'Tuesday' => 'mardi', 'Wednesday' => 'mercredi', 'Thursday' => 'jeudi', 'Friday' => 'vendredi', 'Saturday' => 'samedi', 'Sunday' => 'dimanche', 'Mon' => 'lun.', 'Tue' => 'mar.', 'Wed' => 'mer.', 'Thu' => 'jeu.', 'Fri' => 'ven.', 'Sat' => 'sam.', 'Sun' => 'dim.'],
+            'de' => ['Monday' => 'Montag', 'Tuesday' => 'Dienstag', 'Wednesday' => 'Mittwoch', 'Thursday' => 'Donnerstag', 'Friday' => 'Freitag', 'Saturday' => 'Samstag', 'Sunday' => 'Sonntag', 'Mon' => 'Mo.', 'Tue' => 'Di.', 'Wed' => 'Mi.', 'Thu' => 'Do.', 'Fri' => 'Fr.', 'Sat' => 'Sa.', 'Sun' => 'So.'],
+            'es' => ['Monday' => 'lunes', 'Tuesday' => 'martes', 'Wednesday' => 'miércoles', 'Thursday' => 'jueves', 'Friday' => 'viernes', 'Saturday' => 'sábado', 'Sunday' => 'domingo', 'Mon' => 'lun.', 'Tue' => 'mar.', 'Wed' => 'mié.', 'Thu' => 'jue.', 'Fri' => 'vie.', 'Sat' => 'sáb.', 'Sun' => 'dom.'],
+            'it' => ['Monday' => 'lunedì', 'Tuesday' => 'martedì', 'Wednesday' => 'mercoledì', 'Thursday' => 'giovedì', 'Friday' => 'venerdì', 'Saturday' => 'sabato', 'Sunday' => 'domenica', 'Mon' => 'lun', 'Tue' => 'mar', 'Wed' => 'mer', 'Thu' => 'gio', 'Fri' => 'ven', 'Sat' => 'sab', 'Sun' => 'dom'],
+            'pt' => ['Monday' => 'segunda-feira', 'Tuesday' => 'terça-feira', 'Wednesday' => 'quarta-feira', 'Thursday' => 'quinta-feira', 'Friday' => 'sexta-feira', 'Saturday' => 'sábado', 'Sunday' => 'domingo', 'Mon' => 'seg.', 'Tue' => 'ter.', 'Wed' => 'qua.', 'Thu' => 'qui.', 'Fri' => 'sex.', 'Sat' => 'sáb.', 'Sun' => 'dom.'],
+            'nl' => ['Monday' => 'maandag', 'Tuesday' => 'dinsdag', 'Wednesday' => 'woensdag', 'Thursday' => 'donderdag', 'Friday' => 'vrijdag', 'Saturday' => 'zaterdag', 'Sunday' => 'zondag', 'Mon' => 'ma', 'Tue' => 'di', 'Wed' => 'wo', 'Thu' => 'do', 'Fri' => 'vr', 'Sat' => 'za', 'Sun' => 'zo'],
+            'ar' => ['Monday' => 'الاثنين', 'Tuesday' => 'الثلاثاء', 'Wednesday' => 'الأربعاء', 'Thursday' => 'الخميس', 'Friday' => 'الجمعة', 'Saturday' => 'السبت', 'Sunday' => 'الأحد', 'Mon' => 'اثنين', 'Tue' => 'ثلاثاء', 'Wed' => 'أربعاء', 'Thu' => 'خميس', 'Fri' => 'جمعة', 'Sat' => 'سبت', 'Sun' => 'أحد'],
+            'zh' => ['Monday' => '星期一', 'Tuesday' => '星期二', 'Wednesday' => '星期三', 'Thursday' => '星期四', 'Friday' => '星期五', 'Saturday' => '星期六', 'Sunday' => '星期日', 'Mon' => '周一', 'Tue' => '周二', 'Wed' => '周三', 'Thu' => '周四', 'Fri' => '周五', 'Sat' => '周六', 'Sun' => '周日'],
+            'ja' => ['Monday' => '月曜日', 'Tuesday' => '火曜日', 'Wednesday' => '水曜日', 'Thursday' => '木曜日', 'Friday' => '金曜日', 'Saturday' => '土曜日', 'Sunday' => '日曜日', 'Mon' => '月', 'Tue' => '火', 'Wed' => '水', 'Thu' => '木', 'Fri' => '金', 'Sat' => '土', 'Sun' => '日'],
+        ];
+        $map = array_merge($months[$locale] ?? [], $days[$locale] ?? []);
+        if ($map === []) {
+            return $date;
+        }
+        uksort($map, fn ($a, $b) => strlen($b) <=> strlen($a));
+        $translated = strtr($date, $map);
+
+        return $translated;
     }
 
     /**
