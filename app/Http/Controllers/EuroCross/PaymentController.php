@@ -30,6 +30,18 @@ class PaymentController extends Controller
 
         $settings = $this->shop($request);
         $plan = (string) $validated['plan'];
+
+        if ($settings->hasActiveSubscription()) {
+            $message = $settings->plan === $plan
+                ? 'You already have an active subscription for this plan.'
+                : 'You already have an active subscription. Cancel the current subscription before purchasing a different plan.';
+
+            return response()->json([
+                'success' => false,
+                'error' => $message,
+            ], 409);
+        }
+
         [$providerName, $provider] = $this->resolveProvider($plan);
 
         if ($provider === null) {
@@ -215,6 +227,14 @@ class PaymentController extends Controller
         $settings = $this->shop($request);
         $email = (string) ($request->query('email', $settings->billing_email ?? ''));
         $provider = $this->gumroad;
+
+        if ($settings->hasActiveSubscription()) {
+            $message = $settings->plan === $plan
+                ? 'You already have an active subscription for this plan.'
+                : 'You already have an active subscription. Cancel the current subscription before purchasing a different plan.';
+
+            abort(409, $message);
+        }
 
         if (! $provider->supportsPlan($plan)) {
             abort(503, 'Payment provider is not configured for this plan.');

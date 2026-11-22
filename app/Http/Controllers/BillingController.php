@@ -29,6 +29,14 @@ class BillingController extends Controller
             $settings->forceFill(['billing_email' => $user->email])->save();
         }
 
+        if ($settings->hasActiveSubscription()) {
+            $message = $settings->plan === $plan
+                ? 'You already have an active subscription for this plan.'
+                : 'You already have an active subscription. To change plans, cancel your current Gumroad subscription and subscribe to the new plan after it ends.';
+
+            return redirect()->route('dashboard.module', 'billing')->withErrors(['billing' => $message]);
+        }
+
         abort_unless($gumroad->supportsPlan($plan), 503, 'Payment provider is not configured for this plan.');
 
         $url = $gumroad->createCheckout([

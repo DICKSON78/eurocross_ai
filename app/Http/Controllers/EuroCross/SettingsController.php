@@ -78,6 +78,13 @@ class SettingsController extends Controller
             ], 400);
         }
 
+        if ($settings->trial_started_at !== null || $settings->trial_expires !== null) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Your free trial has already been used. Purchase a plan to continue.',
+            ], 403);
+        }
+
         $trialDays = (int) config('payment.trial.days', 14);
         $graceDays = (int) config('payment.trial.grace_period_days', 3);
         $oldValues = $settings->only(['trial', 'trial_started_at', 'trial_expires', 'grace_expires']);

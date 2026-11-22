@@ -327,6 +327,7 @@ class GumroadBillingTest extends TestCase
             'event' => 'recurring_charge',
             'product_id' => '03Ex_UcTD52UiV3lhwHZhA==',
             'product_permalink' => 'eurocross-growth',
+            'subscription_id' => $settings->subscription_id,
         ]), 'evt-push', 'recurring_charge'))
             ->handle(app(GumroadProvider::class), app(ConnectedSiteService::class));
 

@@ -93,22 +93,49 @@ class ProcessGumroadWebhook implements ShouldQueue
         $nextBilling = $this->parseDate($payload['next_charge_date'] ?? $payload['ends_at'] ?? null);
         $saleId = (string) ($payload['sale_id'] ?? $payload['id'] ?? '');
 
-        DB::transaction(function () use ($settings, $plan, $saleId, $subscriptionId, $nextBilling, $record, $user): void {
+        $conflictingActivation = false;
+
+        DB::transaction(function () use ($settings, $plan, $saleId, $subscriptionId, $nextBilling, $record, $user, &$conflictingActivation): void {
             $locked = EuroCrossSettings::where('id', $settings->id)->lockForUpdate()->firstOrFail();
             $previous = $locked->only(['plan', 'subscription_status', 'subscription_id']);
 
             if (in_array($this->eventType, ['sale', 'recurring_charge', 'subscription_updated', 'subscription_restarted'], true)) {
-                if ($locked->subscription_id !== '' && $locked->subscription_id !== $subscriptionId) {
-                    Log::channel('api')->warning('Gumroad plan switch detected', ['user_id' => $user->id]);
+                $incomingSubscriptionId = $subscriptionId !== '' ? $subscriptionId : null;
+                $hasDifferentActiveSubscription = $locked->hasActiveSubscription()
+                    && filled($locked->subscription_id)
+                    && $incomingSubscriptionId !== null
+                    && ! hash_equals((string) $locked->subscription_id, $incomingSubscriptionId);
+
+                if ($hasDifferentActiveSubscription) {
+                    $conflictingActivation = true;
+                    Log::channel('api')->warning('Gumroad webhook conflicts with active subscription', [
+                        'shop_id' => $locked->id,
+                        'user_id' => $user->id,
+                        'existing_subscription_id' => $locked->subscription_id,
+                        'incoming_subscription_id' => $incomingSubscriptionId,
+                        'event' => $this->eventType,
+                    ]);
                     EuroCrossAuditLog::create([
                         'shop_id' => $locked->id,
-                        'action' => 'gumroad_subscription_replaced',
+                        'action' => 'gumroad_subscription_conflict',
                         'entity_type' => 'eurocross_settings',
                         'entity_id' => $locked->id,
                         'old_value' => json_encode($previous),
-                        'new_value' => json_encode(['subscription_id' => $subscriptionId, 'plan' => $plan]),
+                        'new_value' => json_encode(['subscription_id' => $incomingSubscriptionId, 'plan' => $plan, 'event' => $this->eventType]),
                     ]);
+                    $record->forceFill([
+                        'shop_id' => $locked->id,
+                        'processed' => true,
+                        'processed_at' => now(),
+                        'error' => 'conflicting_active_subscription',
+                    ])->save();
+
+                    return;
                 }
+
+                $isNewActivation = ! hash_equals((string) $locked->subscription_id, (string) $incomingSubscriptionId)
+                    || $locked->plan !== $plan
+                    || ! $locked->hasActiveSubscription();
 
                 $locked->forceFill([
                     'plan' => $plan,
@@ -118,7 +145,7 @@ class ProcessGumroadWebhook implements ShouldQueue
                     'subscription_status' => 'active',
                     'subscription_current_period_end' => $nextBilling ?? $locked->subscription_current_period_end,
                     'next_billing_date' => $nextBilling ?? $locked->next_billing_date,
-                    'words_reset_at' => now(),
+                    'words_reset_at' => $isNewActivation ? now() : ($locked->words_reset_at ?? now()),
                     'trial' => false,
                     'trial_expires' => null,
                     'grace_expires' => null,
@@ -172,6 +199,16 @@ class ProcessGumroadWebhook implements ShouldQueue
                 'error' => null,
             ])->save();
         });
+
+        if ($conflictingActivation) {
+            $this->storeManualPayment($plan, $productId, $permalink, $email);
+            $record->refresh();
+            if ($record->shop_id === null) {
+                $record->forceFill(['shop_id' => $settings->id])->save();
+            }
+
+            return;
+        }
 
         $connectedSites?->sync($settings->fresh());
     }
