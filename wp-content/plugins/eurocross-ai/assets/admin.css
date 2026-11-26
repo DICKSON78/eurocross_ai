@@ -56,6 +56,14 @@
 	background: var(--eurocross-primary);
 }
 
+.eurocross-tab-panel[hidden] {
+	display: none !important;
+}
+
+.eurocross-tab-panel {
+	padding-top: 0.25rem;
+}
+
 .eurocross-settings-layout {
 	display: grid;
 	grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);

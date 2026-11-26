@@ -39,9 +39,7 @@ class AccountController extends Controller
                     'plan' => $settings->plan,
                     'plan_name' => $settings->getPlanDisplayName(),
                     'status' => $settings->accessStatus()['status'],
-                    'active_accounts' => $settings->active_accounts,
-                    'monthly_recurring_revenue' => (float) $settings->monthly_recurring_revenue,
-                    'monthly_profit' => (float) $settings->monthly_profit,
+                    'access_reason' => $settings->accessStatus()['reason'],
                     'trial' => [
                         'active' => $settings->isTrial(),
                         'days_remaining' => $settings->trialRemainingDays(),
@@ -85,13 +83,11 @@ class AccountController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'settings' => $settings->only(['plan', 'locale', 'trial', 'active_accounts']),
+                'settings' => $settings->only(['plan', 'locale', 'trial']),
                 'usage_stats' => $usageStats,
                 'plan_features' => array_values($settings->getPlanFeatures()),
                 'is_trial' => $settings->isTrial(),
                 'trial_days_remaining' => $settings->trialRemainingDays(),
-                'monthly_recurring_revenue' => (float) $settings->monthly_recurring_revenue,
-                'monthly_profit' => (float) $settings->monthly_profit,
             ],
         ]);
     }

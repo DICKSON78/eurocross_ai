@@ -67,23 +67,78 @@
 			return;
 		}
 
+		var form = document.querySelector('.eurocross-settings-form');
+		var panels = {};
+
+		if (form) {
+			var titles = form.querySelectorAll('.eurocross-section-title[id]');
+			Array.prototype.forEach.call(titles, function (title) {
+				var panel = document.createElement('div');
+				panel.className = 'eurocross-tab-panel';
+				panel.setAttribute('data-eurocross-panel', title.id);
+				title.parentNode.insertBefore(panel, title);
+
+				var node = panel.nextSibling;
+				while (node) {
+					var next = node.nextSibling;
+					if (node.nodeType === 1 && node.classList && node.classList.contains('eurocross-section-title')) {
+						break;
+					}
+					if (node.nodeType === 1 && node.classList && node.classList.contains('submit')) {
+						break;
+					}
+					panel.appendChild(node);
+					node = next;
+				}
+				panels[title.id] = panel;
+			});
+		}
+
+		function activate(id, scroll) {
+			var found = false;
+			Array.prototype.forEach.call(tabs, function (item) {
+				var match = item.getAttribute('data-eurocross-tab') === id;
+				item.classList.toggle('is-active', match);
+				if (match) {
+					found = true;
+				}
+			});
+			if (!found && tabs[0]) {
+				id = tabs[0].getAttribute('data-eurocross-tab');
+				tabs[0].classList.add('is-active');
+			}
+
+			Object.keys(panels).forEach(function (key) {
+				var active = key === id;
+				panels[key].hidden = !active;
+				panels[key].classList.toggle('is-active', active);
+			});
+
+			if (scroll) {
+				var nav = document.querySelector('.eurocross-tabs');
+				if (nav && typeof nav.scrollIntoView === 'function') {
+					nav.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				}
+			}
+
+			if (window.history && typeof window.history.replaceState === 'function') {
+				window.history.replaceState(null, '', '#' + id);
+			}
+		}
+
 		Array.prototype.forEach.call(tabs, function (tab) {
 			tab.addEventListener('click', function (event) {
 				event.preventDefault();
-				Array.prototype.forEach.call(tabs, function (item) {
-					item.classList.remove('is-active');
-				});
-				tab.classList.add('is-active');
-
-				var target = document.getElementById(tab.getAttribute('data-eurocross-tab'));
-				if (target && typeof target.scrollIntoView === 'function') {
-					target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-				}
-				if (window.history && typeof window.history.replaceState === 'function') {
-					window.history.replaceState(null, '', '#' + tab.getAttribute('data-eurocross-tab'));
-				}
+				activate(tab.getAttribute('data-eurocross-tab'), false);
 			});
 		});
+
+		var initial = (window.location.hash || '').replace('#', '');
+		if (initial && panels[initial]) {
+			activate(initial, false);
+		} else if (tabs[0]) {
+			activate(tabs[0].getAttribute('data-eurocross-tab'), false);
+		}
 	}
 
 	function setupConnectionTest() {

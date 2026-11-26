@@ -3,7 +3,7 @@
  * Plugin Name: EuroCross AI
  * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.2.6
+ * Version: 1.2.7
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce
@@ -19,7 +19,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.2.6');
+    define('EUROCROSS_AI_VERSION', '1.2.7');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -1838,8 +1838,29 @@ class EuroCross_AI
 					</section>
 
 					<section class="eurocross-card eurocross-stat-card">
-						<h2><?php esc_html_e('Chatbot status', 'eurocross-ai'); ?></h2>
-						<?php echo eurocross_ai_render_api_value(isset($dashboard['chatbot']['data']) ? $dashboard['chatbot']['data'] : []); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped?>
+						<h2><?php esc_html_e('Chatbot', 'eurocross-ai'); ?></h2>
+						<?php
+			            $chatbot_data = isset($dashboard['chatbot']['data']) && is_array($dashboard['chatbot']['data']) ? $dashboard['chatbot']['data'] : [];
+			    $is_configured = ! empty($chatbot_data['is_configured']);
+			    $is_included = ! empty($chatbot_data['included']);
+			    $plan_name = isset($chatbot_data['plan']) ? sanitize_text_field((string) $chatbot_data['plan']) : '';
+			    $rate_limit = isset($chatbot_data['rate_limit']) ? absint($chatbot_data['rate_limit']) : 0;
+			    $remaining = isset($chatbot_data['remaining']) ? absint($chatbot_data['remaining']) : 0;
+			    ?>
+						<dl class="eurocross-data-list">
+							<dt><?php esc_html_e('Configured', 'eurocross-ai'); ?></dt>
+							<dd><?php echo $is_configured ? esc_html__('Yes', 'eurocross-ai') : esc_html__('No', 'eurocross-ai'); ?></dd>
+							<dt><?php esc_html_e('Included in plan', 'eurocross-ai'); ?></dt>
+							<dd><?php echo $is_included ? esc_html__('Yes', 'eurocross-ai') : esc_html__('No', 'eurocross-ai'); ?></dd>
+							<?php if ($plan_name !== '') { ?>
+								<dt><?php esc_html_e('Plan', 'eurocross-ai'); ?></dt>
+								<dd><?php echo esc_html(ucfirst($plan_name)); ?></dd>
+							<?php } ?>
+							<?php if ($rate_limit > 0) { ?>
+								<dt><?php esc_html_e('Rate limit', 'eurocross-ai'); ?></dt>
+								<dd><?php echo esc_html((string) $remaining.' / '.(string) $rate_limit); ?></dd>
+							<?php } ?>
+						</dl>
 					</section>
 
 					<section class="eurocross-card eurocross-stat-card">
@@ -1848,17 +1869,49 @@ class EuroCross_AI
 			            if (! empty($dashboard['errors']['account'])) {
 			                echo '<p class="eurocross-empty">'.esc_html(sanitize_text_field((string) $dashboard['errors']['account'])).'</p>';
 			            } elseif (! empty($dashboard['account'])) {
-			                $account_data = isset($dashboard['account']['data']) ? $dashboard['account']['data'] : $dashboard['account'];
-			                echo eurocross_ai_render_api_value($account_data); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			                $account_response = isset($dashboard['account']['data']) && is_array($dashboard['account']['data']) ? $dashboard['account']['data'] : $dashboard['account'];
+			                $account = isset($account_response['account']) && is_array($account_response['account']) ? $account_response['account'] : $account_response;
+			                $usage = isset($account_response['usage']) && is_array($account_response['usage']) ? $account_response['usage'] : [];
+			                $providers = isset($account_response['providers']) && is_array($account_response['providers']) ? $account_response['providers'] : [];
+			                $trial = isset($account['trial']) && is_array($account['trial']) ? $account['trial'] : [];
+			                ?>
+							<dl class="eurocross-data-list">
+								<dt><?php esc_html_e('Plan', 'eurocross-ai'); ?></dt>
+								<dd><?php echo esc_html((string) ($account['plan_name'] ?? $account['plan'] ?? '—')); ?></dd>
+								<dt><?php esc_html_e('Status', 'eurocross-ai'); ?></dt>
+								<dd><?php echo esc_html(ucfirst((string) ($account['status'] ?? 'unknown'))); ?></dd>
+								<?php if (! empty($account['access_reason'])) { ?>
+									<dt><?php esc_html_e('Access', 'eurocross-ai'); ?></dt>
+									<dd><?php echo esc_html((string) $account['access_reason']); ?></dd>
+								<?php } ?>
+								<dt><?php esc_html_e('Trial active', 'eurocross-ai'); ?></dt>
+								<dd><?php echo ! empty($trial['active']) ? esc_html__('Yes', 'eurocross-ai') : esc_html__('No', 'eurocross-ai'); ?></dd>
+								<?php if (! empty($trial['expires_at'])) { ?>
+									<dt><?php esc_html_e('Trial expires', 'eurocross-ai'); ?></dt>
+									<dd><?php echo esc_html((string) $trial['expires_at']); ?></dd>
+								<?php } ?>
+								<?php if (! empty($trial['grace_ends_at'])) { ?>
+									<dt><?php esc_html_e('Grace ends', 'eurocross-ai'); ?></dt>
+									<dd><?php echo esc_html((string) $trial['grace_ends_at']); ?></dd>
+								<?php } ?>
+								<?php if (! empty($usage)) { ?>
+									<dt><?php esc_html_e('Words this month', 'eurocross-ai'); ?></dt>
+									<dd><?php echo esc_html(number_format_i18n((int) ($usage['words_this_month'] ?? 0))); ?></dd>
+									<dt><?php esc_html_e('Remaining words', 'eurocross-ai'); ?></dt>
+									<dd><?php echo esc_html(number_format_i18n((int) ($usage['remaining_words'] ?? 0))); ?></dd>
+									<dt><?php esc_html_e('Usage', 'eurocross-ai'); ?></dt>
+									<dd><?php echo esc_html((string) ($usage['usage_percentage'] ?? 0).'%'); ?></dd>
+								<?php } ?>
+								<?php if (! empty($providers)) { ?>
+									<dt><?php esc_html_e('AI provider', 'eurocross-ai'); ?></dt>
+									<dd><?php echo esc_html((string) ($providers['primary'] ?? 'unknown')); ?></dd>
+								<?php } ?>
+							</dl>
+							<?php
 			            } else {
 			                echo '<p class="eurocross-empty">'.esc_html__('No account data available.', 'eurocross-ai').'</p>';
 			            }
 			    ?>
-					</section>
-
-					<section class="eurocross-card eurocross-stat-card">
-						<h2><?php esc_html_e('Trial', 'eurocross-ai'); ?></h2>
-						<?php echo eurocross_ai_render_api_value(get_option('eurocross_trial_data', [])); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped?>
 					</section>
 				</div>
 

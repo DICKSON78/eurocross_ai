@@ -6,7 +6,7 @@ Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
 Requires Plugins: woocommerce
-Stable tag: 1.2.6
+Stable tag: 1.2.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,6 +105,10 @@ Uninstalling the plugin deletes its options, transients, cached translations, st
 3. A WooCommerce storefront with the language switcher and VAT checkout field.
 
 == Changelog ==
+
+= 1.2.7 =
+* Improved WP admin dashboard and settings UX (tabbed settings, clearer account/usage display).
+* Removed owner-only SaaS metrics from site-facing account API response.
 
 = 1.2.6 =
 * Fixed Plugin Check (PCP) escaping/sanitization findings and removed discouraged load_plugin_textdomain call.
