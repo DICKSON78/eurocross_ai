@@ -464,7 +464,7 @@ class EuroCross_AI_REST
             return 'user:'.$user_id;
         }
 
-        $remote_address = isset($_SERVER['REMOTE_ADDR']) ? (string) wp_unslash($_SERVER['REMOTE_ADDR']) : '';
+        $remote_address = isset($_SERVER['REMOTE_ADDR']) ? sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])) : '';
 
         return $remote_address === '' ? 'unknown' : 'ip:'.md5($remote_address);
     }

@@ -3,7 +3,7 @@
  * Plugin Name: EuroCross AI
  * Plugin URI: https://eurocross-ai.kadetech.online
  * Description: AI translation, language switching and EU VAT/OSS handling for WooCommerce, powered by the EuroCross AI SaaS API.
- * Version: 1.2.5
+ * Version: 1.2.6
  * Requires at least: 6.2
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce
@@ -19,7 +19,7 @@ if (! defined('ABSPATH')) {
 }
 
 if (! defined('EUROCROSS_AI_VERSION')) {
-    define('EUROCROSS_AI_VERSION', '1.2.5');
+    define('EUROCROSS_AI_VERSION', '1.2.6');
 }
 if (! defined('EUROCROSS_AI_PLUGIN_FILE')) {
     define('EUROCROSS_AI_PLUGIN_FILE', __FILE__);
@@ -509,10 +509,10 @@ function eurocross_ai_get_current_locale()
     }
 
     $request_locale = '';
-    if (isset($_GET['eurocross_lang'])) {
-        $request_locale = eurocross_ai_sanitize_language_code(wp_unslash($_GET['eurocross_lang']));
-    } elseif (isset($_GET['lang'])) {
-        $request_locale = eurocross_ai_sanitize_language_code(wp_unslash($_GET['lang']));
+    if (isset($_GET['eurocross_lang'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public locale switch.
+        $request_locale = eurocross_ai_sanitize_language_code(sanitize_text_field(wp_unslash($_GET['eurocross_lang']))); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public locale switch.
+    } elseif (isset($_GET['lang'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public locale switch.
+        $request_locale = eurocross_ai_sanitize_language_code(sanitize_text_field(wp_unslash($_GET['lang']))); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Public locale switch.
     }
 
     if ($request_locale !== '') {
@@ -535,8 +535,8 @@ function eurocross_ai_get_current_locale()
         }
     }
 
-    if (isset($_COOKIE['eurocross_locale'])) {
-        $cookie_locale = eurocross_ai_sanitize_language_code(wp_unslash($_COOKIE['eurocross_locale']));
+    if (isset($_COOKIE['eurocross_locale'])) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only locale cookie.
+        $cookie_locale = eurocross_ai_sanitize_language_code(sanitize_text_field(wp_unslash($_COOKIE['eurocross_locale'])));
         if ($cookie_locale !== '') {
             $resolved = $cookie_locale;
 
@@ -964,27 +964,11 @@ class EuroCross_AI
      */
     private function __construct()
     {
-        add_action('plugins_loaded', [$this, 'load_textdomain']);
-
         register_activation_hook(EUROCROSS_AI_PLUGIN_FILE, [$this, 'activate']);
         register_deactivation_hook(EUROCROSS_AI_PLUGIN_FILE, [$this, 'deactivate']);
         register_uninstall_hook(EUROCROSS_AI_PLUGIN_FILE, ['EuroCross_AI_Uninstall', 'handle']);
 
         $this->register_hooks();
-    }
-
-    /**
-     * Load translations.
-     *
-     * @return void
-     */
-    public function load_textdomain()
-    {
-        load_plugin_textdomain(
-            'eurocross-ai',
-            false,
-            dirname(plugin_basename(EUROCROSS_AI_PLUGIN_FILE)).'/languages'
-        );
     }
 
     /**
@@ -2264,8 +2248,8 @@ class EuroCross_AI
      */
     private function is_safe_ajax_translation_request(): bool
     {
-        $action = isset($_REQUEST['action']) ? sanitize_key((string) wp_unslash($_REQUEST['action'])) : '';
-        $wc_ajax = isset($_REQUEST['wc-ajax']) ? sanitize_key((string) wp_unslash($_REQUEST['wc-ajax'])) : '';
+        $action = isset($_REQUEST['action']) ? sanitize_key(wp_unslash($_REQUEST['action'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only request type check.
+        $wc_ajax = isset($_REQUEST['wc-ajax']) ? sanitize_key(wp_unslash($_REQUEST['wc-ajax'])) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only request type check.
 
         return in_array($action, ['woocommerce_get_refreshed_fragments', 'woocommerce_add_to_cart', 'woocommerce_remove_from_cart'], true)
             || in_array($wc_ajax, ['get_refreshed_fragments', 'apply_coupon', 'remove_coupon', 'update_shipping_method'], true);
@@ -2293,7 +2277,7 @@ class EuroCross_AI
     {
         $scheme = is_ssl() ? 'https' : 'http';
         $host = isset($_SERVER['HTTP_HOST']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_HOST'])) : wp_parse_url(home_url(), PHP_URL_HOST);
-        $request_uri = isset($_SERVER['REQUEST_URI']) ? wp_unslash($_SERVER['REQUEST_URI']) : '/';
+        $request_uri = isset($_SERVER['REQUEST_URI']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI'])) : '/';
         $url = $scheme.'://'.$host.$request_uri;
         $url = remove_query_arg(['eurocross_lang', 'lang'], $url);
 
@@ -2369,12 +2353,12 @@ class EuroCross_AI
                 continue;
             }
             $seen[$code] = true;
-            $href = esc_url($this->get_localized_current_url($code));
-            echo '<link rel="alternate" hreflang="'.esc_attr($code).'" href="'.$href.'" />'."\n";
+            $href = $this->get_localized_current_url($code);
+            echo '<link rel="alternate" hreflang="'.esc_attr($code).'" href="'.esc_url($href).'" />'."\n";
         }
 
-        $default_href = esc_url($this->get_localized_current_url($source));
-        echo '<link rel="alternate" hreflang="x-default" href="'.$default_href.'" />'."\n";
+        $default_href = $this->get_localized_current_url($source);
+        echo '<link rel="alternate" hreflang="x-default" href="'.esc_url($default_href).'" />'."\n";
     }
 
     /**
@@ -3630,8 +3614,8 @@ class EuroCross_AI
 
         check_admin_referer('eurocross_checkout');
 
-        $plan = isset($_POST['eurocross_plan']) ? (string) $_POST['eurocross_plan'] : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
-        $email = isset($_POST['eurocross_email']) ? (string) $_POST['eurocross_email'] : ''; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $plan = isset($_POST['eurocross_plan']) ? sanitize_text_field(wp_unslash($_POST['eurocross_plan'])) : '';
+        $email = isset($_POST['eurocross_email']) ? sanitize_email(wp_unslash($_POST['eurocross_email'])) : '';
 
         $result = $this->do_checkout($plan, $email);
         if (is_wp_error($result)) {
@@ -3762,8 +3746,8 @@ class EuroCross_AI
             wp_send_json_error(['message' => __('You are not allowed to perform this action.', 'eurocross-ai')], 403);
         }
 
-        $plan = isset($_POST['eurocross_plan']) ? (string) wp_unslash($_POST['eurocross_plan']) : '';
-        $email = isset($_POST['eurocross_email']) ? (string) wp_unslash($_POST['eurocross_email']) : '';
+        $plan = isset($_POST['eurocross_plan']) ? sanitize_text_field(wp_unslash($_POST['eurocross_plan'])) : '';
+        $email = isset($_POST['eurocross_email']) ? sanitize_email(wp_unslash($_POST['eurocross_email'])) : '';
 
         $result = $this->do_checkout($plan, $email);
         if (is_wp_error($result)) {
