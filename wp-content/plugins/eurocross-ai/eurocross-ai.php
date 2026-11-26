@@ -1929,7 +1929,7 @@ class EuroCross_AI
 					<p class="description"><?php esc_html_e('Billing, API keys, plan changes, and account settings are managed securely in your EuroCross dashboard.', 'eurocross-ai'); ?></p>
 					<p style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
 						<a class="button button-primary" href="<?php echo esc_url($saas_base.'/dashboard'); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Open EuroCross Dashboard', 'eurocross-ai'); ?></a>
-						<a class="button button-secondary" href="<?php echo esc_url($saas_base.'/dashboard/module/keys'); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Manage API Keys', 'eurocross-ai'); ?></a>
+						<a class="button button-secondary" href="<?php echo esc_url($saas_base.'/dashboard/keys'); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Manage API Keys', 'eurocross-ai'); ?></a>
 						<a class="button button-secondary" href="<?php echo esc_url($saas_base.'/dashboard/billing'); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e('Billing', 'eurocross-ai'); ?></a>
 					</p>
 				</section>
