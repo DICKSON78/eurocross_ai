@@ -61,7 +61,15 @@
 }
 
 .eurocross-tab-panel {
-	padding-top: 0.25rem;
+	background: var(--eurocross-surface);
+	border: 1px solid var(--eurocross-border);
+	border-radius: 8px;
+	padding: 1.25rem 1.5rem;
+	margin-bottom: 1rem;
+}
+
+.eurocross-tab-panel .eurocross-section-title {
+	margin-top: 0;
 }
 
 .eurocross-settings-layout {
@@ -552,4 +560,91 @@
 	.eurocross-tabs {
 		gap: 0.25rem;
 	}
+}
+
+/* Dashboard polish */
+.eurocross-dashboard .eurocross-stat-grid {
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: 1.25rem;
+}
+
+.eurocross-dashboard .eurocross-card {
+	border-radius: 12px;
+	box-shadow: 0 4px 16px rgba(107, 12, 62, 0.06);
+}
+
+.eurocross-dashboard .eurocross-card h2 {
+	font-size: 0.95rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--eurocross-muted);
+	margin-bottom: 0.75rem;
+}
+
+.eurocross-dashboard .eurocross-stat-value {
+	font-size: 2rem;
+	line-height: 1.1;
+}
+
+.eurocross-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.2rem 0.6rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 700;
+	text-transform: capitalize;
+	background: #F3E8EF;
+	color: var(--eurocross-primary-dark);
+}
+
+.eurocross-badge--active,
+.eurocross-badge--trial {
+	background: #E7F6EC;
+	color: #1F7A3D;
+}
+
+.eurocross-badge--grace,
+.eurocross-badge--past_due {
+	background: #FFF4DB;
+	color: #8A5A00;
+}
+
+.eurocross-badge--expired,
+.eurocross-badge--inactive,
+.eurocross-badge--suspended {
+	background: #FDECEC;
+	color: #B42318;
+}
+
+.eurocross-usage-bar {
+	width: 100%;
+	max-width: 180px;
+	height: 8px;
+	background: #F0E4EC;
+	border-radius: 999px;
+	overflow: hidden;
+	margin-bottom: 0.25rem;
+}
+
+.eurocross-usage-bar > span {
+	display: block;
+	height: 100%;
+	background: linear-gradient(90deg, var(--eurocross-primary), var(--eurocross-accent));
+	border-radius: 999px;
+}
+
+.eurocross-dashboard .eurocross-data-list {
+	gap: 0.5rem 1rem;
+}
+
+.eurocross-dashboard .eurocross-data-list dt {
+	font-size: 0.78rem;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.eurocross-dashboard .eurocross-data-list dd {
+	font-weight: 600;
+	color: var(--eurocross-text);
 }
