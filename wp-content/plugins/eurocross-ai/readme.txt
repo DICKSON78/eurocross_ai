@@ -6,7 +6,7 @@ Requires at least: 6.2
 Tested up to: 7.1
 Requires PHP: 7.4
 Requires Plugins: woocommerce
-Stable tag: 1.2.9
+Stable tag: 1.2.10
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -105,6 +105,9 @@ Uninstalling the plugin deletes its options, transients, cached translations, st
 3. A WooCommerce storefront with the language switcher and VAT checkout field.
 
 == Changelog ==
+
+= 1.2.10 =
+* Removed AI provider from dashboard and softened dashboard label typography.
 
 = 1.2.9 =
 * Reorganized WP dashboard into a single clean overview card with sectioned info blocks.

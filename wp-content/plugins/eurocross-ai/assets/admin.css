@@ -639,12 +639,12 @@
 }
 
 .eurocross-dashboard .eurocross-data-list dt {
-	font-size: 0.78rem;
-	text-transform: uppercase;
-	letter-spacing: 0.03em;
+	font-size: 0.85rem;
+	color: var(--eurocross-muted);
+	font-weight: 500;
 }
 
 .eurocross-dashboard .eurocross-data-list dd {
-	font-weight: 600;
+	font-weight: 500;
 	color: var(--eurocross-text);
 }
